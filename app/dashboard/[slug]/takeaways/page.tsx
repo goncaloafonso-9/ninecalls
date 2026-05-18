@@ -191,11 +191,11 @@ export default async function TakeawaysPage({ params, searchParams }: Props) {
                   Levantamento: {horaLevantamento ? format(horaLevantamento, "d MMM 'às' HH:mm", { locale: pt }) : '—'}
                 </p>
                 {/* Linha 3: items */}
-                {(t as Record<string, unknown>).items && (
+                {(t as Record<string, unknown>).items ? (
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {(t as Record<string, unknown>).items as string}
                   </p>
-                )}
+                ) : null}
               </div>
             )
           })
