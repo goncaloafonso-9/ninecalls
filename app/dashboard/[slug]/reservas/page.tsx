@@ -1,11 +1,10 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { subDays, startOfDay, format } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { PeriodFilter } from '@/components/dashboard/period-filter'
 import { Calendar } from 'lucide-react'
-import { NoShowButton } from '@/components/dashboard/no-show-button'
-import { cn } from '@/lib/utils'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -24,6 +23,30 @@ const SERVICO_LABELS: Record<string, string> = {
   almoco:       'Almoço',
   jantar:       'Jantar',
   desconhecido: '—',
+}
+
+const ESTADO_STYLE: Record<string, { background: string; color: string; label: string }> = {
+  confirmada: { background: 'var(--green-50)',  color: 'var(--green-700, #15803d)', label: 'Confirmada' },
+  no_show:    { background: 'var(--red-50)',    color: 'var(--red-600)',             label: 'No-Show'    },
+  cancelado:  { background: 'var(--bg-muted)',  color: 'var(--text-secondary)',      label: 'Cancelado'  },
+}
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '10px 16px',
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
+  background: 'var(--bg-subtle)',
+  borderBottom: '1px solid var(--surface-border)',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  verticalAlign: 'middle',
 }
 
 export default async function ReservasPage({ params, searchParams }: Props) {
@@ -46,9 +69,10 @@ export default async function ReservasPage({ params, searchParams }: Props) {
     ? startOfDay(new Date())
     : periodo === '7d' ? subDays(new Date(), 7) : subDays(new Date(), 30)
 
-  const { data: bookings } = await supabase
-    .from('v_bookings_enriched')
-    .select('id, booking_datetime, number_of_people, cliente_nome, espaco, servico, estado, pode_marcar_no_show, horas_restantes_no_show, special_requests')
+  const db = createAdminClient()
+  const { data: bookings } = await db
+    .from('bookings')
+    .select('id, booking_datetime, cliente_nome, cliente_phone, number_of_people, espaco, servico, estado, confirmado_em')
     .eq('restaurant_id', restaurant.id)
     .gte('booking_datetime', startDate.toISOString())
     .order('booking_datetime', { ascending: false })
@@ -57,77 +81,91 @@ export default async function ReservasPage({ params, searchParams }: Props) {
   const rows = bookings ?? []
 
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: 'var(--page-padding-y) var(--page-padding-x)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Reservas</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{rows.length} reservas no período</p>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+            Reservas
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            {rows.length} reserva{rows.length !== 1 ? 's' : ''} no período
+          </p>
         </div>
         <PeriodFilter active={periodo} />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* ── Vista desktop: tabela ── */}
+      <div className="nc-table-desktop" style={{
+        background: 'var(--surface-1)',
+        border: '1px solid var(--surface-border)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+      }}>
         {rows.length === 0 ? (
-          <div className="p-12 text-center">
-            <Calendar className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-500">Sem reservas no período seleccionado</p>
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <Calendar style={{ width: '32px', height: '32px', color: 'var(--text-muted)', margin: '0 auto 12px' }} />
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Sem reservas no período seleccionado</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Data</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Hora</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Nome</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Pessoas</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Espaço</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Serviço</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Acção</th>
+                <tr>
+                  <th style={thStyle}>Data</th>
+                  <th style={thStyle}>Hora</th>
+                  <th style={thStyle}>Nome</th>
+                  <th style={thStyle}>Pessoas</th>
+                  <th style={thStyle}>Espaço</th>
+                  <th style={thStyle}>Serviço</th>
+                  <th style={thStyle}>Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {rows.map(b => {
+              <tbody>
+                {rows.map((b, idx) => {
                   const dt = b.booking_datetime ? new Date(b.booking_datetime) : null
-                  const noShow = b.estado === 'no_show'
+                  const isInactive = b.estado === 'no_show' || b.estado === 'cancelado'
+                  const badge = ESTADO_STYLE[b.estado ?? ''] ?? ESTADO_STYLE.confirmada
                   return (
-                    <tr key={b.id} className={cn('hover:bg-slate-50 transition-colors', noShow && 'opacity-60')}>
-                      <td className="px-4 py-3 text-slate-700">
+                    <tr
+                      key={b.id}
+                      className="nc-data-row"
+                      style={{
+                        borderBottom: idx < rows.length - 1 ? '1px solid var(--surface-border)' : 'none',
+                        opacity: isInactive ? 0.6 : 1,
+                        transition: 'background 80ms ease',
+                      }}
+                    >
+                      <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace', fontSize: '12px' }}>
                         {dt ? format(dt, 'd MMM yyyy', { locale: pt }) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td style={{ ...tdStyle, color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono), monospace', fontSize: '12px' }}>
                         {dt ? format(dt, 'HH:mm') : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 font-medium">
+                      <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {b.cliente_nome ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {b.number_of_people ?? '—'}
+                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>
+                        {(b as Record<string, unknown>).number_of_people as number ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
                         {ESPACO_LABELS[b.espaco ?? ''] ?? b.espaco ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
                         {SERVICO_LABELS[b.servico ?? ''] ?? b.servico ?? '—'}
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
-                          noShow
-                            ? 'bg-slate-100 text-slate-500'
-                            : 'bg-emerald-50 text-emerald-700'
-                        )}>
-                          {noShow ? 'No-Show' : 'Confirmada'}
+                      <td style={tdStyle}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '100px',
+                          whiteSpace: 'nowrap',
+                          background: badge.background,
+                          color: badge.color,
+                        }}>
+                          {badge.label}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {b.pode_marcar_no_show && (
-                          <NoShowButton
-                            bookingId={b.id}
-                            horasRestantes={Math.round(b.horas_restantes_no_show ?? 0)}
-                          />
-                        )}
                       </td>
                     </tr>
                   )
@@ -135,6 +173,46 @@ export default async function ReservasPage({ params, searchParams }: Props) {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* ── Vista mobile: cards ── */}
+      <div className="nc-mobile-card">
+        {rows.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <Calendar style={{ width: '32px', height: '32px', color: 'var(--text-muted)', margin: '0 auto 12px' }} />
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Sem reservas no período seleccionado</p>
+          </div>
+        ) : (
+          rows.map(b => {
+            const dt = b.booking_datetime ? new Date(b.booking_datetime) : null
+            const isInactive = b.estado === 'no_show' || b.estado === 'cancelado'
+            const badge = ESTADO_STYLE[b.estado ?? ''] ?? ESTADO_STYLE.confirmada
+            return (
+              <div key={b.id} className="nc-mobile-card-item" style={{ opacity: isInactive ? 0.7 : 1 }}>
+                {/* Linha 1: nome + badge */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {b.cliente_nome ?? '—'}
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '100px', whiteSpace: 'nowrap', background: badge.background, color: badge.color, flexShrink: 0 }}>
+                    {badge.label}
+                  </span>
+                </div>
+                {/* Linha 2: data + hora + pessoas */}
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace', margin: '0 0 4px' }}>
+                  {dt ? format(dt, "d MMM yyyy 'às' HH:mm", { locale: pt }) : '—'}
+                  {(b as Record<string, unknown>).number_of_people
+                    ? ` · ${(b as Record<string, unknown>).number_of_people} pess.`
+                    : ''}
+                </p>
+                {/* Linha 3: espaço + serviço */}
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                  {[ESPACO_LABELS[b.espaco ?? ''] ?? b.espaco, SERVICO_LABELS[b.servico ?? ''] ?? b.servico].filter(Boolean).join(' · ') || '—'}
+                </p>
+              </div>
+            )
+          })
         )}
       </div>
     </div>

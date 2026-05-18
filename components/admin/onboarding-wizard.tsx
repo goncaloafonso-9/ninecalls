@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { cn, formatEuro } from '@/lib/utils'
 import { Plus, Trash2, ChevronRight, ChevronLeft, Check } from 'lucide-react'
 
+const safeFloat = (v: string, fb = 0) => v === '' ? fb : parseFloat(v)
+const safeInt   = (v: string, fb = 0) => v === '' ? fb : parseInt(v)
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AgenteDraft {
@@ -22,15 +25,20 @@ interface RestauranteDraft {
   aceita_ultima_hora: boolean
   taxa_ativacao: number
   comissao_por_pessoa: number
+  taxa_mensal_fixa: number
   taxa_takeaway: number
-  pessoas_por_takeaway: number
-  valor_estimado_por_pessoa: number
   valor_medio_takeaway: number
   objetivo_garantia: number
+  tem_garantia: boolean
   periodo_compromisso_dias: number
   valor_rescisao_antecipada: number
-  google_drive_folder_id: string
+  google_drive_folder_link: string
   agentes: AgenteDraft[]
+  is_founder: boolean
+  founder_notes: string
+  // Set after Slack step
+  slack_channel_id?: string
+  slack_channel_name?: string
 }
 
 interface ClienteDraft {
@@ -41,7 +49,6 @@ interface ClienteDraft {
   email_faturacao: string
   telefone: string
   password: string
-  google_drive_folder_id: string
   docusign_envelope_id: string
   notas_internas: string
 }
@@ -50,23 +57,24 @@ function defaultRestaurante(): RestauranteDraft {
   return {
     nome: '', morada: '', telnyx_phone: '', transfer_phone: '',
     software_reservas: 'nenhum', tem_takeaway: false, aceita_ultima_hora: false,
-    taxa_ativacao: 300, comissao_por_pessoa: 2, taxa_takeaway: 3,
-    pessoas_por_takeaway: 2, valor_estimado_por_pessoa: 35, valor_medio_takeaway: 25,
-    objetivo_garantia: 100, periodo_compromisso_dias: 90, valor_rescisao_antecipada: 0,
-    google_drive_folder_id: '', agentes: [{ nome: '', telnyx_agent_id: '' }],
+    taxa_ativacao: 300, comissao_por_pessoa: 2, taxa_mensal_fixa: 0, taxa_takeaway: 3,
+    valor_medio_takeaway: 25,
+    objetivo_garantia: 100, tem_garantia: true, periodo_compromisso_dias: 90, valor_rescisao_antecipada: 0,
+    google_drive_folder_link: '', agentes: [{ nome: '', telnyx_agent_id: '' }],
+    is_founder: false, founder_notes: '',
   }
 }
 
 // ─── Helper components ────────────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-medium text-slate-600 mb-1">{children}</label>
+  return <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">{children}</label>
 }
 
 function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={cn('w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent', className)}
+      className={cn('w-full border border-slate-200 rounded-lg h-11 px-3 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400 transition-shadow', className)}
       {...props}
     />
   )
@@ -139,10 +147,6 @@ function Step1Cliente({ data, onChange }: { data: ClienteDraft; onChange: (d: Cl
               {showPw ? 'ocultar' : 'ver'}
             </button>
           </div>
-        </div>
-        <div>
-          <Label>Google Drive Folder ID</Label>
-          <Input value={data.google_drive_folder_id} onChange={e => set('google_drive_folder_id', e.target.value)} />
         </div>
         <div>
           <Label>DocuSign Envelope ID</Label>
@@ -241,8 +245,8 @@ function Step2Restaurantes({
               </select>
             </div>
             <div>
-              <Label>Google Drive Folder ID *</Label>
-              <Input value={r.google_drive_folder_id} onChange={e => updateR(i, { google_drive_folder_id: e.target.value })} />
+              <Label>Link Pasta Google Drive</Label>
+              <Input value={r.google_drive_folder_link} onChange={e => updateR(i, { google_drive_folder_link: e.target.value })} placeholder="https://drive.google.com/drive/folders/..." />
             </div>
             <div className="flex items-center gap-6 sm:col-span-2">
               <Toggle value={r.tem_takeaway} onChange={v => updateR(i, { tem_takeaway: v })} label="Tem Takeaway" />
@@ -255,37 +259,64 @@ function Step2Restaurantes({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <Label>Investimento Inicial (€) *</Label>
-                <Input type="number" step="10" min="0" value={r.taxa_ativacao} onChange={e => updateR(i, { taxa_ativacao: parseFloat(e.target.value) })} />
+                <Input type="number" step="10" min="0" value={r.taxa_ativacao} onChange={e => {
+                  const v = safeFloat(e.target.value)
+                  updateR(i, { taxa_ativacao: v, ...(v === 0 ? { tem_garantia: false } : {}) })
+                }} />
               </div>
               <div>
                 <Label>Comissão/Pessoa (€) *</Label>
-                <Input type="number" step="0.5" min="0" value={r.comissao_por_pessoa} onChange={e => updateR(i, { comissao_por_pessoa: parseFloat(e.target.value) })} />
+                <Input type="number" step="0.5" min="0" value={r.comissao_por_pessoa} onChange={e => updateR(i, { comissao_por_pessoa: safeFloat(e.target.value) })} />
+              </div>
+              <div>
+                <Label>Mensalidade Fixa (€)</Label>
+                <Input type="number" step="0.01" min="0" value={r.taxa_mensal_fixa} onChange={e => updateR(i, { taxa_mensal_fixa: safeFloat(e.target.value) })} />
               </div>
               <div>
                 <Label>Taxa Takeaway (€)</Label>
-                <Input type="number" step="0.5" min="0" value={r.taxa_takeaway} onChange={e => updateR(i, { taxa_takeaway: parseFloat(e.target.value) })} disabled={!r.tem_takeaway} />
+                <Input type="number" step="0.5" min="0" value={r.taxa_takeaway} onChange={e => updateR(i, { taxa_takeaway: safeFloat(e.target.value) })} disabled={!r.tem_takeaway} />
+              </div>
+              <div className="sm:col-span-4 flex items-center gap-4 pt-1">
+                <Toggle value={r.tem_garantia} onChange={v => updateR(i, { tem_garantia: v })} label="Tem Período de Garantia" />
+                {r.taxa_ativacao === 0 && (
+                  <span className="text-xs text-amber-600">Investimento = €0 → sem garantia obrigatório</span>
+                )}
               </div>
               <div>
-                <Label>Pessoas/Takeaway</Label>
-                <Input type="number" step="1" min="1" value={r.pessoas_por_takeaway} onChange={e => updateR(i, { pessoas_por_takeaway: parseInt(e.target.value) })} disabled={!r.tem_takeaway} />
-              </div>
-              <div>
-                <Label>Objectivo Garantia (px) *</Label>
-                <Input type="number" step="10" min="0" value={r.objetivo_garantia} onChange={e => updateR(i, { objetivo_garantia: parseInt(e.target.value) })} />
+                <Label>Objectivo Garantia (pessoas) *</Label>
+                <Input type="number" step="10" min="0" value={r.objetivo_garantia} onChange={e => updateR(i, { objetivo_garantia: safeInt(e.target.value) })} disabled={!r.tem_garantia} />
               </div>
               <div>
                 <Label>Compromisso (dias)</Label>
-                <Input type="number" step="30" min="0" value={r.periodo_compromisso_dias} onChange={e => updateR(i, { periodo_compromisso_dias: parseInt(e.target.value) })} />
+                <Input type="number" step="30" min="0" value={r.periodo_compromisso_dias} onChange={e => updateR(i, { periodo_compromisso_dias: safeInt(e.target.value) })} />
               </div>
               <div>
                 <Label>Valor Rescisão (€)</Label>
-                <Input type="number" step="50" min="0" value={r.valor_rescisao_antecipada} onChange={e => updateR(i, { valor_rescisao_antecipada: parseFloat(e.target.value) })} />
-              </div>
-              <div>
-                <Label>Ticket Médio/Pessoa (€)</Label>
-                <Input type="number" step="5" min="0" value={r.valor_estimado_por_pessoa} onChange={e => updateR(i, { valor_estimado_por_pessoa: parseFloat(e.target.value) })} />
+                <Input type="number" step="50" min="0" value={r.valor_rescisao_antecipada} onChange={e => updateR(i, { valor_rescisao_antecipada: safeFloat(e.target.value) })} />
               </div>
             </div>
+          </div>
+
+          {/* Founder section */}
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Toggle value={r.is_founder} onChange={v => updateR(i, { is_founder: v })} label="Cliente Fundador" />
+              {r.is_founder && (
+                <span className="text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">🏆 Condições Especiais</span>
+              )}
+            </div>
+            {r.is_founder && (
+              <div>
+                <Label>Notas Fundador (internas)</Label>
+                <textarea
+                  value={r.founder_notes}
+                  onChange={e => updateR(i, { founder_notes: e.target.value })}
+                  rows={2}
+                  placeholder="Ex: acordo verbal de comissão reduzida, sem invoice Stripe..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                />
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -380,8 +411,10 @@ function Step4Revisao({ cliente, restaurantes }: { cliente: ClienteDraft; restau
           <div className="flex items-center justify-between mb-3">
             <p className="font-semibold text-slate-900">{r.nome || `Restaurante ${i + 1}`}</p>
             <div className="flex gap-2">
+              {r.is_founder && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">🏆 Fundador</span>}
               {r.tem_takeaway && <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">Takeaway</span>}
               {r.aceita_ultima_hora && <span className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full">Última Hora</span>}
+              <span className="text-xs bg-slate-50 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full font-mono">#{restaurantes[i]?.nome?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || '...'}</span>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -393,6 +426,12 @@ function Step4Revisao({ cliente, restaurantes }: { cliente: ClienteDraft; restau
               <p className="text-xs text-slate-400">Comissão/Pessoa</p>
               <p className="font-medium text-slate-900">{formatEuro(r.comissao_por_pessoa)}</p>
             </div>
+            {r.taxa_mensal_fixa > 0 && (
+              <div>
+                <p className="text-xs text-slate-400">Mensalidade Fixa</p>
+                <p className="font-medium text-slate-900">{formatEuro(r.taxa_mensal_fixa)}</p>
+              </div>
+            )}
             <div>
               <p className="text-xs text-slate-400">Objectivo Garantia</p>
               <p className="font-medium text-slate-900">{r.objetivo_garantia} pessoas</p>
@@ -427,7 +466,7 @@ export function OnboardingWizard() {
 
   const [cliente, setCliente] = useState<ClienteDraft>({
     nome_empresa: '', nif: '', morada: '', email_contacto: '', email_faturacao: '',
-    telefone: '', password: '', google_drive_folder_id: '', docusign_envelope_id: '', notas_internas: '',
+    telefone: '', password: '', docusign_envelope_id: '', notas_internas: '',
   })
   const [restaurantes, setRestaurantes] = useState<RestauranteDraft[]>([defaultRestaurante()])
 
@@ -456,15 +495,15 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl w-full">
       {/* Stepper */}
       <div className="flex items-center gap-0 mb-8">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center">
             <div className={cn(
               'flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-colors',
-              i < step ? 'bg-slate-900 text-white' :
-              i === step ? 'bg-slate-900 text-white' :
+              i < step ? 'bg-blue-600 text-white' :
+              i === step ? 'bg-blue-600 text-white' :
               'bg-slate-100 text-slate-400'
             )}>
               {i < step ? <Check className="w-4 h-4" /> : i + 1}
@@ -473,14 +512,14 @@ export function OnboardingWizard() {
               {s}
             </span>
             {i < STEPS.length - 1 && (
-              <div className={cn('h-px w-12 mx-4', i < step ? 'bg-slate-900' : 'bg-slate-200')} />
+              <div className={cn('h-px w-12 mx-4', i < step ? 'bg-blue-600' : 'bg-slate-200')} />
             )}
           </div>
         ))}
       </div>
 
       {/* Step content */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
+      <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
         {step === 0 && <Step1Cliente data={cliente} onChange={setCliente} />}
         {step === 1 && <Step2Restaurantes restaurantes={restaurantes} onChange={setRestaurantes} />}
         {step === 2 && <Step3Agentes restaurantes={restaurantes} onChange={setRestaurantes} />}
@@ -493,7 +532,7 @@ export function OnboardingWizard() {
           type="button"
           onClick={() => setStep(s => s - 1)}
           disabled={step === 0}
-          className="flex items-center gap-2 text-sm px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 transition-colors"
+          className="flex items-center gap-2 text-sm px-4 h-11 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" /> Anterior
         </button>
@@ -502,16 +541,16 @@ export function OnboardingWizard() {
           <button
             type="button"
             onClick={() => setStep(s => s + 1)}
-            className="flex items-center gap-2 text-sm px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-2 text-sm px-5 h-11 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Próximo <ChevronRight className="w-4 h-4" />
+            Continuar <ChevronRight className="w-4 h-4" />
           </button>
         ) : (
           <button
             type="button"
             onClick={handleSubmit}
             disabled={loading}
-            className="flex items-center gap-2 text-sm px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 text-sm px-6 h-11 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {loading ? 'A criar...' : 'Confirmar e Criar'}
             {!loading && <Check className="w-4 h-4" />}

@@ -13,6 +13,7 @@ interface RestaurantActionsProps {
   hasTransferPhone: boolean
   hasDriveFolder: boolean
   hasObjetivo: boolean
+  temGarantia: boolean
 }
 
 export function RestaurantActions({
@@ -23,6 +24,7 @@ export function RestaurantActions({
   hasTransferPhone,
   hasDriveFolder,
   hasObjetivo,
+  temGarantia,
 }: RestaurantActionsProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
@@ -64,32 +66,71 @@ export function RestaurantActions({
     }
   }
 
+  async function handleActivarSemGarantia() {
+    setLoading('sem-garantia')
+    try {
+      await callAPI('/api/admin/activar-sem-garantia', { restaurantId })
+      router.refresh()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setLoading(null)
+    }
+  }
+
   const guarantiaPreconditionsMet = hasActiveAgent && hasTransferPhone && hasDriveFolder && hasObjetivo
+  const semGarantiaPreconditionsMet = hasActiveAgent && hasTransferPhone && hasDriveFolder
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* em_construcao */}
       {estado === 'em_construcao' && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleActivarGarantia}
-            disabled={!guarantiaPreconditionsMet || loading === 'garantia'}
-            className={cn(
-              'text-sm px-4 py-2 rounded-lg font-medium transition-colors',
-              guarantiaPreconditionsMet
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            )}
-          >
-            {loading === 'garantia' ? 'A activar...' : 'Activar Garantia'}
-          </button>
-          {!guarantiaPreconditionsMet && (
-            <p className="text-xs text-amber-600">
-              {!hasActiveAgent && '⚠ Sem agente activo · '}
-              {!hasTransferPhone && '⚠ Sem número de transferência · '}
-              {!hasDriveFolder && '⚠ Sem pasta Google Drive · '}
-              {!hasObjetivo && '⚠ Objectivo de garantia = 0'}
-            </p>
+          {temGarantia ? (
+            <>
+              <button
+                onClick={handleActivarGarantia}
+                disabled={!guarantiaPreconditionsMet || loading === 'garantia'}
+                className={cn(
+                  'text-sm px-4 py-2 rounded-lg font-medium transition-colors',
+                  guarantiaPreconditionsMet
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                )}
+              >
+                {loading === 'garantia' ? 'A activar...' : 'Activar Garantia'}
+              </button>
+              {!guarantiaPreconditionsMet && (
+                <p className="text-xs text-amber-600">
+                  {!hasActiveAgent && '⚠ Sem agente activo · '}
+                  {!hasTransferPhone && '⚠ Sem número de transferência · '}
+                  {!hasDriveFolder && '⚠ Sem pasta Google Drive · '}
+                  {!hasObjetivo && '⚠ Objectivo de garantia = 0'}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleActivarSemGarantia}
+                disabled={!semGarantiaPreconditionsMet || loading === 'sem-garantia'}
+                className={cn(
+                  'text-sm px-4 py-2 rounded-lg font-medium transition-colors',
+                  semGarantiaPreconditionsMet
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                )}
+              >
+                {loading === 'sem-garantia' ? 'A activar...' : 'Activar (sem garantia)'}
+              </button>
+              {!semGarantiaPreconditionsMet && (
+                <p className="text-xs text-amber-600">
+                  {!hasActiveAgent && '⚠ Sem agente activo · '}
+                  {!hasTransferPhone && '⚠ Sem número de transferência · '}
+                  {!hasDriveFolder && '⚠ Sem pasta Google Drive'}
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { ClientProfile } from '@/types'
-import { Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import { Copy, Check, AlertTriangle } from 'lucide-react'
 
 interface ClientFormProps {
   client: ClientProfile
@@ -39,7 +39,6 @@ export function ClientForm({ client }: ClientFormProps) {
     morada: client.morada,
     email_faturacao: client.email_faturacao,
     telefone: client.telefone ?? '',
-    google_drive_folder_id: client.google_drive_folder_id ?? '',
     docusign_envelope_id: client.docusign_envelope_id ?? '',
     notas_internas: client.notas_internas ?? '',
   })
@@ -50,14 +49,15 @@ export function ClientForm({ client }: ClientFormProps) {
   const [newEmail, setNewEmail] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
 
-  // Password change
-  const [newPassword, setNewPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [savingPassword, setSavingPassword] = useState(false)
-
   // Reveal current password
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
+  }, [])
 
   function setField(key: string, value: string) {
     setForm(f => ({ ...f, [key]: value }))
@@ -98,25 +98,26 @@ export function ClientForm({ client }: ClientFormProps) {
     finally { setSavingEmail(false) }
   }
 
-  async function handleUpdatePassword() {
-    if (!newPassword) return
-    setSavingPassword(true)
-    try {
-      await post('/api/admin/change-client-password', { clientId: client.id, newPassword })
-      setNewPassword('')
-      router.refresh()
-      alert('Password actualizada com sucesso.')
-    } catch (err) { alert((err as Error).message) }
-    finally { setSavingPassword(false) }
-  }
-
   async function handleRevealPassword() {
     setRevealing(true)
     try {
       const json = await post('/api/admin/change-client-password', { clientId: client.id, action: 'reveal' })
+      if (!json.password) {
+        alert('Nenhuma password guardada para este cliente. O cliente pode ter alterado a password via self-service (não encriptada no admin) ou o onboarding falhou a guardar a password.')
+        return
+      }
       setRevealedPassword(json.password)
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = setTimeout(() => setRevealedPassword(null), 30_000)
     } catch (err) { alert((err as Error).message) }
     finally { setRevealing(false) }
+  }
+
+  async function handleCopyPassword() {
+    if (!revealedPassword) return
+    await navigator.clipboard.writeText(revealedPassword)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -148,9 +149,6 @@ export function ClientForm({ client }: ClientFormProps) {
           </Field>
           <Field label="Telefone">
             <TextInput value={form.telefone} onChange={e => setField('telefone', e.target.value)} placeholder="+351..." />
-          </Field>
-          <Field label="Google Drive Folder ID">
-            <TextInput value={form.google_drive_folder_id} onChange={e => setField('google_drive_folder_id', e.target.value)} />
           </Field>
           <Field label="DocuSign Envelope ID">
             <TextInput value={form.docusign_envelope_id} onChange={e => setField('docusign_envelope_id', e.target.value)} />
@@ -199,56 +197,42 @@ export function ClientForm({ client }: ClientFormProps) {
       {/* Password */}
       <div className="bg-white border border-slate-200 rounded-lg p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-900">Password</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Password do Cliente</h3>
           {client.password_alterada_cliente && (
             <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
               <AlertTriangle className="w-3 h-3" />
-              Password alterada pelo cliente via self-service — valor guardado pode estar desactualizado
+              Cliente alterou a password via self-service
             </div>
           )}
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <TextInput
-                type={showPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="Nova password..."
-                className="pr-10"
-              />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRevealPassword}
+            disabled={revealing}
+            className="text-sm px-3 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            {revealing ? 'A desencriptar...' : 'Ver Password'}
+          </button>
+          {revealedPassword && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <span className="text-sm font-mono text-slate-900 select-all">{revealedPassword}</span>
               <button
-                onClick={() => setShowPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                onClick={handleCopyPassword}
+                className="text-slate-400 hover:text-slate-700 transition-colors"
+                title="Copiar password"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => { setRevealedPassword(null); if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }}
+                className="text-slate-400 hover:text-slate-600 text-xs ml-1"
+              >
+                ×
               </button>
             </div>
-            <button
-              onClick={handleUpdatePassword}
-              disabled={!newPassword || savingPassword}
-              className="text-sm px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors whitespace-nowrap"
-            >
-              {savingPassword ? 'A actualizar...' : 'Actualizar Password'}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRevealPassword}
-              disabled={revealing}
-              className="text-sm px-3 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              {revealing ? 'A desencriptar...' : 'Ver Password Actual (Encriptada BD)'}
-            </button>
-            {revealedPassword && (
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                <span className="text-sm font-mono text-slate-900">{revealedPassword}</span>
-                <button onClick={() => setRevealedPassword(null)} className="text-slate-400 hover:text-slate-600 text-xs">×</button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
+        <p className="text-xs text-slate-400 mt-2">A password é ocultada automaticamente após 30 segundos.</p>
       </div>
     </div>
   )

@@ -31,7 +31,15 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes — no auth needed
-  if (pathname.startsWith('/confirm') || pathname === '/') {
+  if (
+    pathname.startsWith('/confirm') ||
+    pathname.startsWith('/api/confirm') ||
+    pathname.startsWith('/api/webhooks') ||
+    pathname.startsWith('/api/internal') ||
+    pathname === '/' ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password')
+  ) {
     return supabaseResponse
   }
 
@@ -52,13 +60,19 @@ export async function proxy(request: NextRequest) {
 
   const role = user.app_metadata?.role
 
-  // /admin/* — requires role: admin
-  if (pathname.startsWith('/admin') && role !== 'admin') {
+  // /admin/* e /api/admin/* — requires role: admin
+  if (
+    (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) &&
+    role !== 'admin'
+  ) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // /dashboard/* — requires role: client
-  if (pathname.startsWith('/dashboard') && role !== 'client') {
+  // /dashboard/* e /api/client/* — requires role: client
+  if (
+    (pathname.startsWith('/dashboard') || pathname.startsWith('/api/client')) &&
+    role !== 'client'
+  ) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
   }
 

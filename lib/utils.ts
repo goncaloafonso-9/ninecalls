@@ -67,12 +67,14 @@ export const paymentLabels: Record<PaymentStatus, string> = {
   pendente:  'Pendente',
   pago:      'Pago',
   em_atraso: 'Em Atraso',
+  isento:    'Isento',
 }
 
 export const paymentColors: Record<PaymentStatus, string> = {
   pendente:  'bg-slate-100 text-slate-500 border-slate-200',
   pago:      'bg-green-50 text-green-700 border-green-200',
   em_atraso: 'bg-red-50 text-red-700 border-red-200',
+  isento:    'bg-slate-50 text-slate-400 border-slate-100',
 }
 
 // ── Guarantee state helpers ───────────────────────────────────────────────────

@@ -25,18 +25,21 @@ interface CallsChartProps {
 
 interface TooltipProps {
   active?: boolean
-  payload?: Array<{ value: number }>
+  payload?: Array<{ value: number; payload: { date: string } }>
   label?: string
 }
 
-function CustomTooltip({ active, payload, label }: TooltipProps) {
+function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null
+  const rawDate = payload[0]?.payload?.date
+  const parsedDate = rawDate ? parseISO(rawDate) : null
+  const isValid = parsedDate && !isNaN(parsedDate.getTime())
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-sm px-3 py-2">
-      <p className="text-xs text-slate-500">
-        {label ? format(parseISO(label), 'd MMM', { locale: pt }) : ''}
+    <div style={{ background: 'var(--surface-1)', border: '1px solid var(--surface-border)', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', padding: '6px 12px' }}>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+        {isValid ? format(parsedDate!, 'd MMM', { locale: pt }) : ''}
       </p>
-      <p className="text-sm font-semibold text-slate-900">
+      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '2px 0 0' }}>
         {payload[0].value} chamada{payload[0].value !== 1 ? 's' : ''}
       </p>
     </div>
@@ -52,11 +55,13 @@ export function CallsChart({ data }: CallsChartProps) {
     )
   }
 
-  const chartData = data.map(d => ({
-    date: d.stat_date,
-    chamadas: d.total_chamadas,
-    label: format(parseISO(d.stat_date), 'd/MM', { locale: pt }),
-  }))
+  const chartData = data
+    .filter(d => d.stat_date && !isNaN(parseISO(d.stat_date).getTime()))
+    .map(d => ({
+      date: d.stat_date,
+      chamadas: d.total_chamadas,
+      label: format(parseISO(d.stat_date), 'd/MM', { locale: pt }),
+    }))
 
   return (
     <ResponsiveContainer width="100%" height={200}>

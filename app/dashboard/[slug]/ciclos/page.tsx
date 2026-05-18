@@ -4,7 +4,8 @@ import { format } from 'date-fns'
 import { pt } from 'date-fns/locale'
 import { Receipt } from 'lucide-react'
 import { formatEuro } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { StripePortalButton } from '@/components/dashboard/stripe-portal-button'
+import { GoogleDriveButton } from '@/components/dashboard/google-drive-button'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -16,10 +17,28 @@ const PAYMENT_LABELS: Record<string, string> = {
   em_atraso:  'Em Atraso',
 }
 
-const PAYMENT_COLORS: Record<string, string> = {
-  pendente:   'bg-amber-50 text-amber-700',
-  pago:       'bg-emerald-50 text-emerald-700',
-  em_atraso:  'bg-red-50 text-red-600',
+const PAYMENT_STYLE: Record<string, { background: string; color: string }> = {
+  pendente:   { background: 'var(--amber-50)', color: 'var(--amber-600)' },
+  pago:       { background: 'var(--green-50)', color: 'var(--green-700, #15803d)' },
+  em_atraso:  { background: 'var(--red-50)',   color: 'var(--red-600)' },
+}
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '10px 16px',
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
+  background: 'var(--bg-subtle)',
+  borderBottom: '1px solid var(--surface-border)',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  verticalAlign: 'middle',
 }
 
 export default async function CiclosPage({ params }: Props) {
@@ -31,80 +50,118 @@ export default async function CiclosPage({ params }: Props) {
 
   const { data: restaurant } = await supabase
     .from('restaurants')
-    .select('id, nome')
+    .select('id, nome, google_drive_folder_link')
     .eq('slug', slug)
     .single()
 
   if (!restaurant) notFound()
 
-  const { data: ciclos } = await supabase
-    .from('billing_cycles')
-    .select('id, numero_ciclo, data_inicio, data_fim_prevista, estado, estado_pagamento, valor_total, n_chamadas_total, total_pessoas_reservas, total_pessoas_ultima_hora, n_takeaways_confirmados, fatura_at_numero')
-    .eq('restaurant_id', restaurant.id)
-    .order('numero_ciclo', { ascending: false })
+  const [ciclosRes, clientRes] = await Promise.all([
+    supabase
+      .from('billing_cycles')
+      .select('id, numero_ciclo, data_inicio, data_fim_prevista, estado, estado_pagamento, valor_total, total_pessoas_reservas, total_pessoas_ultima_hora, total_takeaways_confirmados, numero_fatura_at')
+      .eq('restaurant_id', restaurant.id)
+      .order('numero_ciclo', { ascending: false }),
+    supabase
+      .from('clients')
+      .select('stripe_customer_id')
+      .eq('auth_user_id', user.id)
+      .single(),
+  ])
 
-  const rows = ciclos ?? []
+  const rows = ciclosRes.data ?? []
+  const hasStripe = !!(clientRes.data?.stripe_customer_id)
 
   return (
-    <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">Ciclos de Faturação</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{rows.length} ciclos</p>
+    <div style={{ padding: 'var(--page-padding-y) var(--page-padding-x)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+            Ciclos de Faturação
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            {rows.length} ciclo{rows.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap', flexShrink: 0 }}>
+          {restaurant.google_drive_folder_link && <GoogleDriveButton driveLink={restaurant.google_drive_folder_link} />}
+          {hasStripe && <StripePortalButton slug={slug} />}
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* ── Vista desktop: tabela ── */}
+      <div className="nc-table-desktop" style={{
+        background: 'var(--surface-1)',
+        border: '1px solid var(--surface-border)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+      }}>
         {rows.length === 0 ? (
-          <div className="p-12 text-center">
-            <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-500">Sem ciclos de faturação</p>
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <Receipt style={{ width: '32px', height: '32px', color: 'var(--text-muted)', margin: '0 auto 12px' }} />
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Sem ciclos de faturação</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Ciclo</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Período</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Chamadas</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Pessoas</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Takeaways</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Valor</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Pagamento</th>
+                <tr>
+                  <th style={thStyle}>Ciclo</th>
+                  <th style={thStyle}>Período</th>
+                  <th style={thStyle}>Chamadas</th>
+                  <th style={thStyle}>Pessoas</th>
+                  <th style={thStyle}>Takeaways</th>
+                  <th style={thStyle}>Valor</th>
+                  <th style={thStyle}>Pagamento</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {rows.map(c => {
+              <tbody>
+                {rows.map((c, idx) => {
                   const inicio = c.data_inicio ? new Date(c.data_inicio) : null
                   const fim    = c.data_fim_prevista ? new Date(c.data_fim_prevista) : null
                   const totalPessoas = (c.total_pessoas_reservas ?? 0) + (c.total_pessoas_ultima_hora ?? 0)
+                  const badge = PAYMENT_STYLE[c.estado_pagamento ?? ''] ?? { background: 'var(--bg-muted)', color: 'var(--text-secondary)' }
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900">#{c.numero_ciclo}</span>
+                    <tr
+                      key={c.id}
+                      className="nc-data-row"
+                      style={{
+                        borderBottom: idx < rows.length - 1 ? '1px solid var(--surface-border)' : 'none',
+                        transition: 'background 80ms ease',
+                      }}
+                    >
+                      <td style={tdStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>#{c.numero_ciclo}</span>
                           {c.numero_ciclo === 0 && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                            <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, background: 'var(--green-50)', color: 'var(--green-700, #15803d)' }}>
                               Garantia
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
+                      <td style={{ ...tdStyle, color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono), monospace', fontSize: '12px' }}>
                         {inicio ? format(inicio, 'd MMM', { locale: pt }) : '—'}
                         {' → '}
                         {fim ? format(fim, 'd MMM yyyy', { locale: pt }) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{c.n_chamadas_total ?? 0}</td>
-                      <td className="px-4 py-3 text-slate-600">{totalPessoas}</td>
-                      <td className="px-4 py-3 text-slate-600">{c.n_takeaways_confirmados ?? 0}</td>
-                      <td className="px-4 py-3 font-medium text-slate-900">
+                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>—</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{totalPessoas}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{c.total_takeaways_confirmados ?? 0}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 600 }}>
                         {c.valor_total != null ? formatEuro(Number(c.valor_total)) : '—'}
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
-                          PAYMENT_COLORS[c.estado_pagamento ?? ''] ?? 'bg-slate-100 text-slate-500'
-                        )}>
+                      <td style={tdStyle}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '100px',
+                          whiteSpace: 'nowrap',
+                          background: badge.background,
+                          color: badge.color,
+                        }}>
                           {PAYMENT_LABELS[c.estado_pagamento ?? ''] ?? c.estado_pagamento ?? '—'}
                         </span>
                       </td>
@@ -114,6 +171,57 @@ export default async function CiclosPage({ params }: Props) {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* ── Vista mobile: cards ── */}
+      <div className="nc-mobile-card">
+        {rows.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <Receipt style={{ width: '32px', height: '32px', color: 'var(--text-muted)', margin: '0 auto 12px' }} />
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Sem ciclos de faturação</p>
+          </div>
+        ) : (
+          rows.map(c => {
+            const inicio = c.data_inicio ? new Date(c.data_inicio) : null
+            const fim    = c.data_fim_prevista ? new Date(c.data_fim_prevista) : null
+            const totalPessoas = (c.total_pessoas_reservas ?? 0) + (c.total_pessoas_ultima_hora ?? 0)
+            const badge = PAYMENT_STYLE[c.estado_pagamento ?? ''] ?? { background: 'var(--bg-muted)', color: 'var(--text-secondary)' }
+            return (
+              <div key={c.id} className="nc-mobile-card-item">
+                {/* Linha 1: ciclo + garantia + badge pagamento */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>
+                    Ciclo #{c.numero_ciclo}
+                  </span>
+                  {c.numero_ciclo === 0 && (
+                    <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, background: 'var(--green-50)', color: 'var(--green-700, #15803d)' }}>
+                      Garantia
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '100px', background: badge.background, color: badge.color, marginLeft: 'auto' }}>
+                    {PAYMENT_LABELS[c.estado_pagamento ?? ''] ?? c.estado_pagamento ?? '—'}
+                  </span>
+                </div>
+                {/* Linha 2: período */}
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono), monospace', margin: '0 0 6px' }}>
+                  {inicio ? format(inicio, 'd MMM', { locale: pt }) : '—'} → {fim ? format(fim, 'd MMM yyyy', { locale: pt }) : '—'}
+                </p>
+                {/* Linha 3: stats + valor */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {totalPessoas} pess.
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {c.total_takeaways_confirmados ?? 0} tkaways
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginLeft: 'auto' }}>
+                    {c.valor_total != null ? formatEuro(Number(c.valor_total)) : '—'}
+                  </span>
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
     </div>

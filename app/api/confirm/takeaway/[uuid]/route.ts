@@ -19,6 +19,12 @@ export async function POST(
   }
 
   const { action } = parsed.data
+
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+
   const supabase = createAdminClient()
 
   // Verify order exists, is pending, and not expired
@@ -47,6 +53,7 @@ export async function POST(
     .update({
       estado: novoEstado,
       timestamp_resposta_restaurante: new Date().toISOString(),
+      confirmacao_ip: ip,
     })
     .eq('id', uuid)
 

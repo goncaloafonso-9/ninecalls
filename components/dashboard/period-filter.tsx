@@ -21,7 +21,7 @@ export function PeriodFilter({ active }: { active: string }) {
   }
 
   return (
-    <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+    <div className="nc-period-filter flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
       {options.map(o => (
         <button
           key={o.value}

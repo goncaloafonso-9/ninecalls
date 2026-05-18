@@ -3,17 +3,25 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { ShoppingBag } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
-const estadoBadge: Record<string, string> = {
-  pendente_restaurante: 'bg-amber-50 text-amber-700 border-amber-200',
-  confirmado:           'bg-green-50 text-green-700 border-green-200',
-  rejeitado:            'bg-red-50 text-red-600 border-red-200',
+export const dynamic = 'force-dynamic'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
+
+const thStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  textAlign: 'left',
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
 }
-const estadoLabel: Record<string, string> = {
-  pendente_restaurante: 'Pendente',
-  confirmado:           'Confirmado',
-  rejeitado:            'Rejeitado',
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  verticalAlign: 'middle',
 }
 
 export default async function TakeawaysPage({
@@ -33,7 +41,7 @@ export default async function TakeawaysPage({
 
   const { data } = await db
     .from('v_takeaways_enriched')
-    .select('id, criado_em, nome_cliente, telefone_cliente, hora_levantamento, itens_pedido, estado, expira_em')
+    .select('id, criado_em, cliente_nome, cliente_phone, pickup_time, items, estado, expira_em')
     .eq('restaurant_id', rest.id)
     .order('criado_em', { ascending: false })
     .limit(100)
@@ -41,57 +49,84 @@ export default async function TakeawaysPage({
   const takeaways = data ?? []
 
   return (
-    <div className="p-6">
-      <div className="mb-5">
-        <p className="text-sm text-slate-500">{takeaways.length} takeaways (últimos 100)</p>
-      </div>
+    <div style={{ padding: 'var(--page-padding-y) var(--page-padding-x)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+        {takeaways.length} takeaways (últimos 100)
+      </p>
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        }}
+      >
         {takeaways.length === 0 ? (
-          <div className="py-16 text-center">
-            <ShoppingBag className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Sem takeaways registados</p>
-          </div>
+          <EmptyState
+            icon={<ShoppingBag style={{ width: '40px', height: '40px' }} />}
+            title="Sem takeaways registados"
+            description="Os takeaways aparecem aqui à medida que o agente os cria."
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60">
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--surface-border)' }}>
                   {['Data', 'Nome', 'Telefone', 'Hora Levant.', 'Pedido', 'Estado'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {takeaways.map((t: Record<string, unknown>) => (
-                  <tr key={t.id as string} className={cn(
-                    'border-b border-slate-50 hover:bg-slate-50/60 transition-colors',
-                    t.estado === 'pendente_restaurante' && 'bg-amber-50/30'
-                  )}>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
-                      {formatDate(t.criado_em as string)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {(t.nome_cliente as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs font-mono text-slate-500">
-                      {(t.telefone_cliente as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-700">
-                      {t.hora_levantamento ? formatDateTime(t.hora_levantamento as string) : '—'}
-                    </td>
-                    <td className="px-4 py-3 max-w-xs">
-                      <p className="text-xs text-slate-500 truncate">{(t.itens_pedido as string) ?? '—'}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium', estadoBadge[t.estado as string] ?? 'bg-slate-100 text-slate-500 border-slate-200')}>
-                        {estadoLabel[t.estado as string] ?? t.estado as string}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {takeaways.map((t: Record<string, unknown>, idx) => {
+                  const isPendente = t.estado === 'pendente_restaurante'
+                  return (
+                    <tr
+                      key={t.id as string}
+                      className={isPendente ? 'nc-data-row-amber' : 'nc-data-row'}
+                      style={{ borderBottom: idx < takeaways.length - 1 ? '1px solid var(--surface-border)' : 'none', transition: 'background 80ms ease' }}
+                    >
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          {formatDate(t.criado_em as string)}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                          {(t.cliente_nome as string) ?? '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono), monospace' }}>
+                          {(t.cliente_phone as string) ?? '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          {t.pickup_time ? formatDateTime(t.pickup_time as string) : '—'}
+                        </span>
+                      </td>
+                      <td style={{ ...tdStyle, maxWidth: '240px' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {(t.items as string) ?? '—'}
+                        </p>
+                      </td>
+                      <td style={tdStyle}>
+                        <StatusBadge variant={
+                          t.estado === 'confirmado' ? 'confirmada'
+                          : t.estado === 'rejeitado' ? 'cancelado'
+                          : 'pendente'
+                        }>
+                          {t.estado === 'confirmado' ? 'Confirmado'
+                            : t.estado === 'rejeitado' ? 'Rejeitado'
+                            : 'Pendente'}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

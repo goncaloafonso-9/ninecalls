@@ -108,3 +108,582 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: oklch(0.882 0.017 252.894); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: oklch(0.704 0.04 256.788); }
+
+/* ============================================================
+   NINE CALLS DESIGN SYSTEM — CSS Tokens
+   ============================================================ */
+
+:root {
+  /* BACKGROUNDS */
+  --bg-base:        #FFFFFF;
+  --bg-subtle:      #F8F9FA;
+  --bg-muted:       #F1F3F5;
+  --bg-overlay:     #E9ECEF;
+
+  /* SURFACE */
+  --surface-1:      #FFFFFF;
+  --surface-2:      #F8F9FA;
+  --surface-border: #E5E7EB;
+
+  /* TEXTO */
+  --text-primary:   #0A0A0A;
+  --text-secondary: #4B5563;
+  --text-muted:     #9CA3AF;
+  --text-disabled:  #D1D5DB;
+  --text-inverse:   #FFFFFF;
+
+  /* AZUL — accent principal */
+  --blue-50:  #EFF6FF;
+  --blue-100: #DBEAFE;
+  --blue-500: #3B82F6;
+  --blue-600: #2563EB;
+  --blue-700: #1D4ED8;
+  --blue-900: #1E3A8A;
+
+  /* VERMELHO — destrutivo */
+  --red-50:  #FEF2F2;
+  --red-100: #FEE2E2;
+  --red-500: #EF4444;
+  --red-600: #DC2626;
+  --red-700: #B91C1C;
+
+  /* VERDE — sucesso / ativo */
+  --green-50:  #F0FDF4;
+  --green-100: #DCFCE7;
+  --green-500: #22C55E;
+  --green-600: #16A34A;
+  --green-700: #15803D;
+
+  /* ÂMBAR — avisos / pausado */
+  --amber-50:  #FFFBEB;
+  --amber-100: #FEF3C7;
+  --amber-500: #F59E0B;
+  --amber-600: #D97706;
+
+  /* NEUTROS */
+  --gray-50:  #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-400: #9CA3AF;
+  --gray-500: #6B7280;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+  --gray-950: #030712;
+
+  /* SIDEBAR */
+  --sidebar-bg:               #FFFFFF;
+  --sidebar-border:           #E5E7EB;
+  --sidebar-item-hover:       #F3F4F6;
+  --sidebar-item-active-bg:   #EFF6FF;
+  --sidebar-item-active-text: #2563EB;
+  --sidebar-item-active-icon: #2563EB;
+  --sidebar-text:             #4B5563;
+  --sidebar-icon:             #9CA3AF;
+
+  /* LAYOUT */
+  --sidebar-width-expanded:  240px;
+  --sidebar-width-collapsed: 64px;
+  --page-padding-x:          32px;
+  --page-padding-y:          32px;
+  --card-padding:            24px;
+  --card-gap:                16px;
+  --table-row-height:        52px;
+  --border-radius-sm:        6px;
+  --border-radius-md:        10px;
+  --border-radius-lg:        14px;
+  --border-radius-xl:        20px;
+
+  /* SOMBRAS */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.07), 0 4px 6px rgba(0,0,0,0.04);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.08), 0 10px 10px rgba(0,0,0,0.04);
+
+  /* ANIMAÇÕES */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast:    100ms;
+  --dur-normal:  200ms;
+  --dur-slow:    350ms;
+
+  /* FOCUS */
+  --focus-ring:        #3B82F6;
+  --focus-ring-offset: #FFFFFF;
+}
+
+/* Dark Mode Tokens */
+.dark {
+  --bg-base:        #0A0A0A;
+  --bg-subtle:      #111111;
+  --bg-muted:       #1A1A1A;
+  --bg-overlay:     #222222;
+  --surface-1:      #141414;
+  --surface-2:      #1C1C1C;
+  --surface-border: #2A2A2A;
+  --text-primary:   #F5F5F5;
+  --text-secondary: #A3A3A3;
+  --text-muted:     #525252;
+  --text-disabled:  #3A3A3A;
+  --text-inverse:   #0A0A0A;
+  --blue-50:  #172554;
+  --blue-100: #1e3a8a;
+  --blue-500: #60A5FA;
+  --blue-600: #3B82F6;
+  --blue-700: #2563EB;
+  --red-50:   #450a0a;
+  --red-500:  #F87171;
+  --red-600:  #EF4444;
+  --red-700:  #DC2626;
+  --green-50:  #052e16;
+  --green-500: #4ADE80;
+  --green-600: #22C55E;
+  --green-700: #16A34A;
+  --amber-50:  #451a03;
+  --amber-500: #FCD34D;
+  --amber-600: #F59E0B;
+  --sidebar-bg:               #111111;
+  --sidebar-border:           #1F1F1F;
+  --sidebar-item-hover:       #1A1A1A;
+  --sidebar-item-active-bg:   #172554;
+  --sidebar-item-active-text: #60A5FA;
+  --sidebar-item-active-icon: #60A5FA;
+  --sidebar-text:             #A3A3A3;
+  --sidebar-icon:             #525252;
+  --shadow-xs: 0 0 0 1px #2A2A2A;
+  --shadow-sm: 0 0 0 1px #2A2A2A;
+  --shadow-md: 0 0 0 1px #2A2A2A, 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-lg: 0 0 0 1px #2A2A2A, 0 8px 24px rgba(0,0,0,0.4);
+  --shadow-xl: 0 0 0 1px #2A2A2A, 0 16px 40px rgba(0,0,0,0.5);
+  --focus-ring:        #60A5FA;
+  --focus-ring-offset: #0A0A0A;
+}
+
+/* ============================================================
+   ANIMAÇÕES GLOBAIS
+   ============================================================ */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Classe utilitária de animação de entrada */
+.animate-in {
+  animation: fadeSlideUp var(--dur-slow) var(--ease-out) both;
+  animation-fill-mode: both;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-muted) 25%,
+    var(--bg-overlay) 50%,
+    var(--bg-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* Onboarding modal (centered) */
+.nc-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 200ms ease;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.nc-sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 860px;
+  max-height: 90vh;
+  background: var(--surface-1);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.22);
+  animation: scaleIn 220ms var(--ease-in-out);
+  overflow-y: auto;
+  z-index: 51;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+
+/* Data table row hover */
+.nc-data-row:hover {
+  background: var(--bg-muted) !important;
+}
+.nc-data-row-amber {
+  background: rgba(255,251,235,0.5);
+}
+.nc-data-row-amber:hover {
+  background: rgba(255,243,210,0.7) !important;
+}
+
+/* RSC-safe hover utilities (CSS-only, no JS event handlers) */
+.nc-hover-row { transition: background 80ms ease; }
+.nc-hover-row:hover { background: var(--bg-muted) !important; }
+
+.nc-hover-link-txt { transition: color 150ms ease; }
+.nc-hover-link-txt:hover { color: var(--text-secondary) !important; }
+
+.nc-btn-dark { transition: background 150ms ease; }
+.nc-btn-dark:hover { background: var(--gray-800) !important; }
+
+.nc-btn-ghost { transition: background 150ms ease; }
+.nc-btn-ghost:hover { background: var(--bg-muted) !important; }
+
+.nc-btn-red { transition: background 150ms ease; }
+.nc-btn-red:hover { background: #b91c1c !important; }
+
+/* ============================================================
+   DARK MODE — Tailwind class overrides
+   Covers pages that use hardcoded Tailwind color utilities
+   instead of CSS variables.
+   ============================================================ */
+
+/* ── Neutral backgrounds ── */
+.dark .bg-white         { background-color: var(--surface-1) !important; }
+.dark .bg-slate-50,
+.dark .bg-gray-50       { background-color: var(--bg-subtle) !important; }
+.dark .bg-slate-100,
+.dark .bg-gray-100      { background-color: var(--bg-muted) !important; }
+.dark .bg-slate-200     { background-color: var(--bg-overlay) !important; }
+
+/* ── Text ── */
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-gray-900,
+.dark .text-gray-800    { color: var(--text-primary) !important; }
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-gray-700,
+.dark .text-gray-600    { color: var(--text-secondary) !important; }
+.dark .text-slate-500,
+.dark .text-slate-400,
+.dark .text-slate-300,
+.dark .text-gray-500,
+.dark .text-gray-400    { color: var(--text-muted) !important; }
+
+/* ── Borders ── */
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-gray-200,
+.dark .border-gray-100  { border-color: var(--surface-border) !important; }
+.dark .divide-slate-100 > * + *,
+.dark .divide-slate-200 > * + *,
+.dark .divide-y > * + * { border-color: var(--surface-border) !important; }
+
+/* ── Hovers ── */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover { background-color: var(--bg-muted) !important; }
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover  { background-color: var(--bg-muted) !important; }
+
+/* ── Status badge backgrounds (keep colored but softer in dark) ── */
+.dark .bg-emerald-50  { background-color: rgba(16,185,129,0.12) !important; }
+.dark .bg-amber-50    { background-color: rgba(245,158,11,0.12) !important; }
+.dark .bg-red-50      { background-color: rgba(239,68,68,0.12) !important; }
+.dark .bg-blue-50     { background-color: rgba(59,130,246,0.12) !important; }
+.dark .bg-purple-50   { background-color: rgba(168,85,247,0.12) !important; }
+.dark .bg-green-50    { background-color: rgba(34,197,94,0.12) !important; }
+.dark .bg-orange-50   { background-color: rgba(249,115,22,0.12) !important; }
+
+/* ── Status badge text in dark (lighten slightly) ── */
+.dark .text-emerald-700 { color: #34d399 !important; }
+.dark .text-amber-700   { color: #fcd34d !important; }
+.dark .text-red-600,
+.dark .text-red-700     { color: #f87171 !important; }
+.dark .text-blue-700    { color: #93c5fd !important; }
+.dark .text-purple-700  { color: #c4b5fd !important; }
+.dark .text-green-700   { color: #4ade80 !important; }
+
+/* ── Rings & shadows ── */
+.dark .ring-1           { --tw-ring-color: var(--surface-border); }
+.dark .shadow-sm,
+.dark .shadow           { box-shadow: 0 0 0 1px var(--surface-border) !important; }
+
+/* ── Form inputs ── */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark select,
+.dark textarea {
+  background-color: var(--surface-1) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--surface-border) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: var(--text-muted) !important; }
+
+/* ── Transcript modal & overlays ── */
+.dark .bg-black\/50 { background-color: rgba(0,0,0,0.7) !important; }
+
+/* ── Specific component fixes ── */
+.dark .nc-data-row-amber { background: rgba(245,158,11,0.06) !important; }
+.dark .nc-data-row-amber:hover { background: rgba(245,158,11,0.10) !important; }
+
+/* ============================================================
+   MOBILE RESPONSIVE — Nine Calls
+   Breakpoint principal: 768px (tablet / ponto de viragem sidebar)
+   Breakpoint secundário: 640px (phones grandes)
+   ============================================================ */
+
+/* ── 1. CSS Tokens reduzidos em mobile ── */
+@media (max-width: 768px) {
+  :root {
+    --page-padding-x: 16px;
+    --page-padding-y: 20px;
+    --card-padding:   16px;
+    --card-gap:       12px;
+  }
+}
+
+/* ── 2. Toggle tabela/cards em mobile ── */
+/* Por defeito: desktop visível, cards ocultos */
+.nc-table-desktop { display: block; }
+.nc-mobile-card   { display: none;  }
+
+@media (max-width: 768px) {
+  .nc-table-desktop { display: none;  }
+  .nc-mobile-card   { display: block; }
+}
+
+/* ── 3. Ocultar colunas admin não-essenciais em mobile ── */
+@media (max-width: 768px) {
+  .nc-col-hide-mobile { display: none !important; }
+}
+
+/* ── 3b. Financeiro grid — reduzir para 4 colunas em mobile ── */
+@media (max-width: 768px) {
+  .nc-financeiro-row {
+    grid-template-columns: 1fr 100px 80px 80px !important;
+  }
+}
+
+/* ── 4. Tab nav com scroll horizontal em mobile (sem scrollbar visível) ── */
+.nc-tab-nav-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.nc-tab-nav-scroll::-webkit-scrollbar { display: none; }
+
+/* ── 5. Overlay da sidebar em mobile ── */
+.nc-sidebar-overlay {
+  display: none;
+}
+@media (max-width: 768px) {
+  .nc-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(2px);
+    z-index: 39;
+    animation: fadeIn var(--dur-normal) var(--ease-out);
+  }
+}
+
+/* ── 6. Topbar mobile — full width fixo ── */
+@media (max-width: 768px) {
+  .nc-topbar-mobile {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 38;
+    box-shadow: var(--shadow-xs);
+  }
+  .nc-main-with-topbar {
+    padding-top: 56px;
+  }
+}
+
+/* ── 7. Animação bottom sheet (modais mobile) ── */
+@keyframes slideInUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Modal como bottom sheet em mobile */
+@media (max-width: 768px) {
+  .nc-sheet-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    max-width: 100% !important;
+    max-height: 88vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    animation: slideInUp 250ms var(--ease-out) !important;
+    overflow-y: auto !important;
+  }
+  /* Onboarding full-screen em mobile */
+  .nc-sheet-panel-full-mobile {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+  }
+  /* Centralizar overlay bottom sheet */
+  .nc-sheet-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  /* Drag handle — oculto em desktop */
+  .nc-drag-handle { display: block; }
+}
+
+/* Drag handle — oculto por defeito (desktop) */
+.nc-drag-handle { display: none; }
+
+/* ── 8. KPI grid responsivo ── */
+@media (max-width: 640px) {
+  .nc-kpi-grid-3 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ── 8b. Charts grid mobile ── */
+@media (max-width: 768px) {
+  .nc-charts-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── 9. Empty state padding reduzido ── */
+@media (max-width: 640px) {
+  .nc-empty-state {
+    padding: 40px 20px !important;
+  }
+}
+
+/* ── 10. Touch targets mínimos (Apple HIG: 44px) ── */
+@media (max-width: 768px) {
+  .nc-touch-target {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+}
+
+/* ── 11. Mobile card — card de dados (lista em vez de tabela) ── */
+.nc-mobile-card-item {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--card-padding);
+  margin-bottom: 8px;
+  transition: background 120ms ease;
+}
+.nc-mobile-card-item:last-child {
+  margin-bottom: 0;
+}
+.nc-mobile-card-item:active {
+  background: var(--bg-subtle);
+}
+
+/* ── 12. Period filter scroll em mobile ── */
+@media (max-width: 640px) {
+  .nc-period-filter {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+  .nc-period-filter::-webkit-scrollbar { display: none; }
+}
+
+/* ── 13. Sidebar drawer mobile (admin + dashboard) ── */
+@media (max-width: 768px) {
+  .nc-sidebar-drawer {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 40 !important;
+    transform: translateX(-100%);
+    transition: transform 250ms var(--ease-out) !important;
+    width: var(--sidebar-width-expanded) !important;
+    min-width: var(--sidebar-width-expanded) !important;
+    max-width: var(--sidebar-width-expanded) !important;
+  }
+  .nc-sidebar-drawer[data-mobile-open="true"] {
+    transform: translateX(0);
+  }
+  /* Main layout ignora sidebar em mobile (sidebar fica por cima) */
+  .nc-layout-main-mobile {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* ── 14. Hamburger button — visível apenas em mobile ── */
+.nc-hamburger {
+  display: none;
+}
+@media (max-width: 768px) {
+  .nc-hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 150ms ease;
+    flex-shrink: 0;
+  }
+  .nc-hamburger:hover {
+    background: var(--bg-muted);
+  }
+  /* Esconder topbar desktop em mobile */
+  .nc-topbar-desktop {
+    display: none !important;
+  }
+}

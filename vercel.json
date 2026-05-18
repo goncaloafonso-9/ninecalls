@@ -4,6 +4,12 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "regions": ["fra1"],
+  "crons": [
+    { "path": "/api/internal/cron/wf-adm-09", "schedule": "0 6 * * *" },
+    { "path": "/api/internal/cron/wf-cron-01", "schedule": "0 7 * * *" },
+    { "path": "/api/internal/cron/wf-cron-02", "schedule": "0 9 * * *" },
+    { "path": "/api/internal/cron/wf-dc-06", "schedule": "0 12 * * *" }
+  ],
   "headers": [
     {
       "source": "/api/webhooks/(.*)",

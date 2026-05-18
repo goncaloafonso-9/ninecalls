@@ -28,12 +28,13 @@ export async function POST(req: NextRequest) {
   if (fetchErr || !restaurant) return NextResponse.json({ error: 'Restaurante não encontrado' }, { status: 404 })
 
   // Pre-conditions
+  if (!restaurant.tem_garantia) return NextResponse.json({ error: 'Este restaurante não tem período de garantia — use Activar (sem garantia)' }, { status: 422 })
+  if (restaurant.estado !== 'em_construcao') return NextResponse.json({ error: 'Restaurante não está em construção' }, { status: 422 })
   const hasActiveAgent = (restaurant.agents as { id: string; activo: boolean }[]).some(a => a.activo)
   if (!hasActiveAgent) return NextResponse.json({ error: 'É necessário pelo menos um agente Telnyx activo' }, { status: 422 })
   if (!restaurant.transfer_phone) return NextResponse.json({ error: 'Número de transferência não configurado' }, { status: 422 })
-  if (!restaurant.google_drive_folder_id) return NextResponse.json({ error: 'Pasta Google Drive não configurada' }, { status: 422 })
+  if (!restaurant.google_drive_folder_link) return NextResponse.json({ error: 'Pasta Google Drive não configurada' }, { status: 422 })
   if (!restaurant.objetivo_garantia || restaurant.objetivo_garantia === 0) return NextResponse.json({ error: 'Objectivo de garantia deve ser maior que 0' }, { status: 422 })
-  if (restaurant.estado !== 'em_construcao') return NextResponse.json({ error: 'Restaurante não está em construção' }, { status: 422 })
 
   const today = new Date().toISOString().split('T')[0]
   const dataFimPrevista = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
   // Create billing cycle 0 (guarantee cycle) with price snapshots
-  const { error: cycleErr } = await db
+  const { data: newCycle, error: cycleErr } = await db
     .from('billing_cycles')
     .insert({
       restaurant_id: restaurantId,
@@ -57,16 +58,19 @@ export async function POST(req: NextRequest) {
       estado: 'ativo',
       snapshot_comissao_por_pessoa: restaurant.comissao_por_pessoa,
       snapshot_taxa_takeaway: restaurant.taxa_takeaway,
-      snapshot_pessoas_por_takeaway: restaurant.pessoas_por_takeaway,
+      snapshot_taxa_mensal_fixa: restaurant.taxa_mensal_fixa,
     })
+    .select('id')
+    .single()
 
   if (cycleErr) return NextResponse.json({ error: cycleErr.message }, { status: 500 })
 
-  // Create guarantee tracking
+  // Create guarantee tracking — billing_cycle_id é necessário para fn_check_guarantee_cumprida
   const { error: gtErr } = await db
     .from('guarantee_tracking')
     .insert({
       restaurant_id: restaurantId,
+      billing_cycle_id: newCycle.id,
       objetivo: restaurant.objetivo_garantia,
       estado: 'em_curso',
     })

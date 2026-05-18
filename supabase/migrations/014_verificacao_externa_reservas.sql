@@ -1,0 +1,10 @@
+-- SUPERSEDED — Não correr este ficheiro.
+-- A coluna verificado_externamente_em não existe no schema real.
+-- Os campos correctos já existem na tabela bookings:
+--   checked              BOOLEAN DEFAULT FALSE
+--   checked_at           TIMESTAMPTZ
+--   check_resultado      TEXT
+--   reserva_id_verdadeira TEXT
+--
+-- A extensão do Trigger 12 para cancelado está em:
+--   014_trigger12_cancelado.sql

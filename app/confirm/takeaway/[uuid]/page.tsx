@@ -1,12 +1,30 @@
+export const dynamic = 'force-dynamic'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
-import { format } from 'date-fns'
-import { pt } from 'date-fns/locale'
 import { ConfirmActions } from '@/components/confirm/confirm-actions'
 import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 
 interface Props {
   params: Promise<{ uuid: string }>
+}
+
+function formatDatetimePT(date: Date): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'Europe/Lisbon',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatTimePT(date: Date): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'Europe/Lisbon',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 export default async function ConfirmTakeawayPage({ params }: Props) {
@@ -16,7 +34,7 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
 
   const { data: order } = await supabase
     .from('takeaway_orders')
-    .select('id, estado, pickup_time, items, pessoas, expira_em, cliente_nome, cliente_phone, criado_em')
+    .select('id, estado, pickup_time, items, pessoas, expira_em, cliente_nome, cliente_phone, criado_em, restaurants(nome)')
     .eq('id', uuid)
     .single()
 
@@ -25,11 +43,14 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
   const now = new Date()
   const expirado = order.expira_em ? now > new Date(order.expira_em) : true
   const jaRespondido = order.estado !== 'pendente_restaurante'
+  const restaurantName = Array.isArray(order.restaurants)
+    ? order.restaurants[0]?.nome
+    : (order.restaurants as { nome?: string } | null)?.nome
 
   if (jaRespondido) {
     const confirmado = order.estado === 'confirmado'
     return (
-      <PageShell>
+      <PageShell restaurantName={restaurantName}>
         <div className="text-center">
           <div className={`w-16 h-16 rounded-2xl ${confirmado ? 'bg-emerald-100' : 'bg-slate-100'} flex items-center justify-center mx-auto mb-5`}>
             {confirmado
@@ -40,9 +61,7 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
           <h1 className="text-xl font-bold text-slate-900 mb-2">
             {confirmado ? 'Pedido confirmado' : 'Pedido rejeitado'}
           </h1>
-          <p className="text-slate-500 text-sm">
-            Este pedido já foi respondido.
-          </p>
+          <p className="text-slate-500 text-sm">Este pedido já foi respondido.</p>
         </div>
       </PageShell>
     )
@@ -50,7 +69,7 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
 
   if (expirado) {
     return (
-      <PageShell>
+      <PageShell restaurantName={restaurantName}>
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5">
             <AlertCircle className="w-8 h-8 text-amber-500" />
@@ -67,9 +86,8 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
   const pickup = order.pickup_time ? new Date(order.pickup_time) : null
 
   return (
-    <PageShell>
+    <PageShell restaurantName={restaurantName}>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
             <ShoppingBag className="w-6 h-6 text-emerald-600" />
@@ -80,14 +98,10 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Order details */}
         <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
           <DetailRow label="Cliente" value={order.cliente_nome ?? order.cliente_phone ?? '—'} />
           {pickup && (
-            <DetailRow
-              label="Levantamento"
-              value={format(pickup, "d 'de' MMMM 'às' HH:mm", { locale: pt })}
-            />
+            <DetailRow label="Levantamento" value={formatDatetimePT(pickup)} />
           )}
           {order.pessoas && (
             <DetailRow label="Pessoas" value={String(order.pessoas)} />
@@ -97,34 +111,33 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
           )}
         </div>
 
-        {/* Expiry info */}
         {order.expira_em && (
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Clock className="w-3.5 h-3.5" />
-            <span>
-              Expira às {format(new Date(order.expira_em), 'HH:mm', { locale: pt })}
-            </span>
+            <span>Expira às {formatTimePT(new Date(order.expira_em))}</span>
           </div>
         )}
 
-        {/* Actions */}
         <ConfirmActions uuid={uuid} type="takeaway" />
       </div>
     </PageShell>
   )
 }
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ restaurantName, children }: { restaurantName?: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
-        {/* Nine Calls logo */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-1">
           <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
             <ShoppingBag className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-semibold text-slate-700">Nine Calls</span>
         </div>
+        {restaurantName
+          ? <p className="text-xs text-slate-400 mb-7 ml-9">{restaurantName}</p>
+          : <div className="mb-7" />
+        }
         {children}
       </div>
     </div>

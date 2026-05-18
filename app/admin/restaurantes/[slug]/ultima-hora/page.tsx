@@ -3,17 +3,30 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { Zap } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
-const estadoBadge: Record<string, string> = {
-  pendente_restaurante: 'bg-amber-50 text-amber-700 border-amber-200',
-  aceite:               'bg-green-50 text-green-700 border-green-200',
-  rejeitado:            'bg-red-50 text-red-600 border-red-200',
+export const dynamic = 'force-dynamic'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
+
+const thStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  textAlign: 'left',
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
 }
-const estadoLabel: Record<string, string> = {
-  pendente_restaurante: 'Pendente',
-  aceite:               'Aceite',
-  rejeitado:            'Rejeitado',
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  verticalAlign: 'middle',
+}
+
+const espacoLabel: Record<string, string> = {
+  sala: 'Sala', terraco: 'Terraço', esplanada: 'Esplanada',
+  sem_preferencia: 'Sem preferência', desconhecido: '—',
 }
 
 export default async function UltimaHoraPage({
@@ -32,71 +45,95 @@ export default async function UltimaHoraPage({
   if (!rest) notFound()
 
   const { data } = await db
-    .from('v_ultima_hora_enriched')
-    .select('id, criado_em, nome_cliente, total_pessoas, espaco, data_hora_pedida, estado')
+    .from('ultima_hora_requests')
+    .select('id, criado_em, cliente_nome, pessoas, espaco_preferido, datetime_solicitado, estado')
     .eq('restaurant_id', rest.id)
     .order('criado_em', { ascending: false })
     .limit(100)
 
   const requests = data ?? []
 
-  const espacoLabel: Record<string, string> = {
-    sala: 'Sala', terraco: 'Terraço', esplanada: 'Esplanada',
-    sem_preferencia: 'Sem preferência', desconhecido: '—',
-  }
-
   return (
-    <div className="p-6">
-      <div className="mb-5">
-        <p className="text-sm text-slate-500">{requests.length} pedidos (últimos 100)</p>
-      </div>
+    <div style={{ padding: 'var(--page-padding-y) var(--page-padding-x)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+        {requests.length} pedidos (últimos 100)
+      </p>
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        }}
+      >
         {requests.length === 0 ? (
-          <div className="py-16 text-center">
-            <Zap className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Sem pedidos de última hora registados</p>
-          </div>
+          <EmptyState
+            icon={<Zap style={{ width: '40px', height: '40px' }} />}
+            title="Sem pedidos de última hora"
+            description="Os pedidos aparecem aqui à medida que o agente os recebe."
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60">
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--surface-border)' }}>
                   {['Data', 'Nome', 'Pessoas', 'Espaço', 'Data/Hora Pedida', 'Estado'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {requests.map((r: Record<string, unknown>) => (
-                  <tr key={r.id as string} className={cn(
-                    'border-b border-slate-50 hover:bg-slate-50/60 transition-colors',
-                    r.estado === 'pendente_restaurante' && 'bg-amber-50/30'
-                  )}>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
-                      {formatDate(r.criado_em as string)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {(r.nome_cliente as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {(r.total_pessoas as number) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {espacoLabel[r.espaco as string] ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-700">
-                      {r.data_hora_pedida ? formatDateTime(r.data_hora_pedida as string) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium', estadoBadge[r.estado as string] ?? 'bg-slate-100 text-slate-500 border-slate-200')}>
-                        {estadoLabel[r.estado as string] ?? r.estado as string}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {requests.map((r: Record<string, unknown>, idx) => {
+                  const isPendente = r.estado === 'pendente_restaurante'
+                  return (
+                    <tr
+                      key={r.id as string}
+                      className={isPendente ? 'nc-data-row-amber' : 'nc-data-row'}
+                      style={{ borderBottom: idx < requests.length - 1 ? '1px solid var(--surface-border)' : 'none', transition: 'background 80ms ease' }}
+                    >
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          {formatDate(r.criado_em as string)}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                          {(r.cliente_nome as string) ?? '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {(r.pessoas as number) ?? '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          {espacoLabel[r.espaco_preferido as string] ?? '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          {r.datetime_solicitado ? formatDateTime(r.datetime_solicitado as string) : '—'}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <StatusBadge variant={
+                          r.estado === 'aceite' ? 'confirmada'
+                          : r.estado === 'rejeitado' ? 'cancelado'
+                          : r.estado === 'nao_aplicavel' ? 'neutro'
+                          : 'pendente'
+                        }>
+                          {r.estado === 'aceite' ? 'Aceite'
+                            : r.estado === 'rejeitado' ? 'Rejeitado'
+                            : r.estado === 'nao_aplicavel' ? 'N/A'
+                            : 'Pendente'}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

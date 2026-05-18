@@ -19,6 +19,12 @@ export async function POST(
   }
 
   const { action } = parsed.data
+
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+
   const supabase = createAdminClient()
 
   const { data: pedido } = await supabase
@@ -29,6 +35,10 @@ export async function POST(
 
   if (!pedido) {
     return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
+  }
+
+  if (pedido.estado === 'nao_aplicavel') {
+    return NextResponse.json({ error: 'Este restaurante não disponibiliza confirmação de última hora' }, { status: 409 })
   }
 
   if (pedido.estado !== 'pendente_restaurante') {
@@ -47,6 +57,7 @@ export async function POST(
     .update({
       estado: novoEstado,
       timestamp_resposta_restaurante: new Date().toISOString(),
+      confirmacao_ip: ip,
     })
     .eq('id', uuid)
 

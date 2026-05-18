@@ -2,22 +2,15 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { subDays, startOfDay, format } from 'date-fns'
 import { PeriodFilter } from '@/components/dashboard/period-filter'
-import { CallsChart } from '@/components/dashboard/calls-chart'
+import { CallsVsReservasChart } from '@/components/dashboard/calls-vs-reservas-chart'
 import { CallTypeChart } from '@/components/dashboard/call-type-chart'
-import {
-  Phone, CheckCircle, Calendar, TrendingUp, ArrowLeftRight, Timer,
-  ShieldCheck, AlertCircle,
-} from 'lucide-react'
+import { KpiCard } from '@/components/ui/kpi-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PhoneOff, ShieldCheck } from 'lucide-react'
 
 interface Props {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ periodo?: string }>
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = Math.round(seconds % 60)
-  return `${m}m ${s.toString().padStart(2, '0')}s`
 }
 
 function formatPct(n: number, d: number): string {
@@ -33,26 +26,23 @@ export default async function DashboardPage({ params, searchParams }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.app_metadata?.role !== 'client') redirect('/login')
 
-  // Resolve restaurant
   const { data: restaurant } = await supabase
     .from('restaurants')
-    .select('id, nome, slug, estado')
+    .select('id, nome, slug, estado, tem_takeaway, aceita_ultima_hora')
     .eq('slug', slug)
     .single()
 
   if (!restaurant) notFound()
 
-  // Date range
   const now = new Date()
   const startDate = periodo === 'hoje'
     ? startOfDay(now)
     : periodo === '7d'
-      ? subDays(now, 7)
-      : subDays(now, 30)
+    ? subDays(now, 7)
+    : subDays(now, 30)
 
   const startIso = startDate.toISOString()
 
-  // Fetch daily_stats for period
   const { data: dailyStats } = await supabase
     .from('daily_stats')
     .select('stat_date, total_chamadas, chamadas_sucesso, chamadas_transferidas, reservas_criadas, duracao_media_segundos')
@@ -62,21 +52,25 @@ export default async function DashboardPage({ params, searchParams }: Props) {
 
   const stats = dailyStats ?? []
 
-  // Aggregate KPIs
-  const totalChamadas    = stats.reduce((s, d) => s + (d.total_chamadas ?? 0), 0)
-  const chamadasSucesso  = stats.reduce((s, d) => s + (d.chamadas_sucesso ?? 0), 0)
-  const chamadasTransf   = stats.reduce((s, d) => s + (d.chamadas_transferidas ?? 0), 0)
-  const reservasCriadas  = stats.reduce((s, d) => s + (d.reservas_criadas ?? 0), 0)
-  const duracaoMedia     = stats.length
-    ? stats.reduce((s, d) => s + (d.duracao_media_segundos ?? 0), 0) / stats.length
-    : 0
+  const totalChamadas   = stats.reduce((s, d) => s + (d.total_chamadas ?? 0), 0)
+  const chamadasSucesso = stats.reduce((s, d) => s + (d.chamadas_sucesso ?? 0), 0)
+  const chamadasTransf  = stats.reduce((s, d) => s + (d.chamadas_transferidas ?? 0), 0)
+  const reservasCriadas = stats.reduce((s, d) => s + (d.reservas_criadas ?? 0), 0)
 
-  // Call type breakdown from calls table
+  // Dados sempre dos últimos 7 dias para o chart Chamadas vs Reservas
+  const last7Start = subDays(now, 7)
+  const { data: stats7d } = await supabase
+    .from('daily_stats')
+    .select('stat_date, total_chamadas, reservas_criadas')
+    .eq('restaurant_id', restaurant.id)
+    .gte('stat_date', format(last7Start, 'yyyy-MM-dd'))
+    .order('stat_date')
+
+  // Tipo de chamada: TODAS as chamadas do restaurante (sem filtro temporal)
   const { data: callTypes } = await supabase
     .from('calls')
     .select('tipo_chamada')
     .eq('restaurant_id', restaurant.id)
-    .gte('call_start_at', startIso)
 
   const typeCount: Record<string, number> = {}
   for (const c of callTypes ?? []) {
@@ -86,7 +80,46 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     .map(([tipo, count]) => ({ tipo, count }))
     .sort((a, b) => b.count - a.count)
 
-  // Guarantee tracking (if em_garantia)
+  // Receita Estimada — filtrada pelo período seleccionado
+  // bookings: campo number_of_people, data confirmado_em
+  // ultima_hora_requests: campo pessoas, data criado_em (só se aceita_ultima_hora = true)
+  // takeaway_orders: data criado_em (só se tem_takeaway = true)
+  const reservasQuery = supabase
+    .from('bookings')
+    .select('number_of_people')
+    .eq('restaurant_id', restaurant.id)
+    .gte('confirmado_em', startIso)
+    .eq('estado', 'confirmada')
+
+  const ultimaHoraQuery = restaurant.aceita_ultima_hora
+    ? supabase
+        .from('ultima_hora_requests')
+        .select('pessoas')
+        .eq('restaurant_id', restaurant.id)
+        .gte('criado_em', startIso)
+        .eq('estado', 'aceite')
+    : Promise.resolve({ data: [] as { pessoas: number }[] })
+
+  const takeawayQuery = restaurant.tem_takeaway
+    ? supabase
+        .from('takeaway_orders')
+        .select('id')
+        .eq('restaurant_id', restaurant.id)
+        .gte('criado_em', startIso)
+        .eq('estado', 'confirmado')
+    : Promise.resolve({ data: [] as { id: string }[] })
+
+  const [reservasPeriodoRes, ultimaHoraPeriodoRes, takeawaysPeriodoRes] = await Promise.all([
+    reservasQuery,
+    ultimaHoraQuery,
+    takeawayQuery,
+  ])
+
+  const pessoasReservas   = (reservasPeriodoRes.data ?? []).reduce((s, b) => s + ((b as Record<string, unknown>).number_of_people as number ?? 0), 0)
+  const pessoasUltimaHora = (ultimaHoraPeriodoRes.data ?? []).reduce((s, u) => s + ((u as Record<string, unknown>).pessoas as number ?? 0), 0)
+  const totalTakeaways    = takeawaysPeriodoRes.data?.length ?? 0
+  const receitaEstimada   = (pessoasReservas + pessoasUltimaHora) * 20 + totalTakeaways * 35
+
   let guarantee = null
   if (restaurant.estado === 'em_garantia') {
     const { data: gt } = await supabase
@@ -97,136 +130,241 @@ export default async function DashboardPage({ params, searchParams }: Props) {
     guarantee = gt
   }
 
-  const kpis = [
-    {
-      label: 'Total de Chamadas',
-      value: totalChamadas,
-      icon: Phone,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-    },
-    {
-      label: 'Taxa de Sucesso',
-      value: formatPct(chamadasSucesso, totalChamadas),
-      icon: CheckCircle,
-      color: Number(formatPct(chamadasSucesso, totalChamadas).replace('%','')) < 20 ? 'text-red-500' : 'text-emerald-600',
-      bg: Number(formatPct(chamadasSucesso, totalChamadas).replace('%','')) < 20 ? 'bg-red-50' : 'bg-emerald-50',
-    },
-    {
-      label: 'Reservas Criadas',
-      value: reservasCriadas,
-      icon: Calendar,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-    },
-    {
-      label: 'Taxa de Reservas',
-      value: formatPct(reservasCriadas, totalChamadas),
-      icon: TrendingUp,
-      color: 'text-slate-600',
-      bg: 'bg-slate-100',
-    },
-    {
-      label: 'Taxa de Transferência',
-      value: formatPct(chamadasTransf, totalChamadas),
-      icon: ArrowLeftRight,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
-    },
-    {
-      label: 'Duração Média',
-      value: formatDuration(duracaoMedia),
-      icon: Timer,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-    },
-  ]
+  const successRate   = parseInt(formatPct(chamadasSucesso, totalChamadas))
+  const reservaRate   = parseInt(formatPct(reservasCriadas, totalChamadas))
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
+    <div
+      style={{
+        padding: 'var(--page-padding-y) var(--page-padding-x)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '28px',
+        minHeight: '100%',
+        background: 'var(--bg-base)',
+      }}
+    >
+      {/* ── Page header ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '16px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.025em',
+              margin: 0,
+            }}
+          >
+            {restaurant.nome}
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Resumo do período escolhido
+          </p>
+        </div>
         <PeriodFilter active={periodo} />
       </div>
 
-      {/* Guarantee Widget */}
+      {/* ── Guarantee widget ── */}
       {guarantee && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4.5 h-4.5 text-emerald-600" />
+        <div
+          style={{
+            background: 'var(--surface-1)',
+            border: '1px solid var(--surface-border)',
+            borderRadius: '16px',
+            padding: '20px 24px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+          }}
+          className="animate-in"
+        >
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'var(--blue-50)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <ShieldCheck style={{ width: '18px', height: '18px', color: 'var(--blue-600)' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '10px',
+              }}
+            >
+              <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Período de Garantia
+              </p>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {(guarantee as Record<string, unknown>).dia_efectivo as number} / 30 dias
+              </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-sm font-semibold text-slate-900">Período de Garantia</p>
-                <span className="text-xs text-slate-500">
-                  {(guarantee as Record<string, unknown>).dia_efectivo as number} / 30 dias
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                <div
-                  className="h-2 rounded-full bg-emerald-500 transition-all"
-                  style={{
-                    width: `${Math.min(
-                      Math.round(((guarantee as Record<string, unknown>).contagem_actual as number) / ((guarantee as Record<string, unknown>).objetivo as number) * 100),
-                      100
-                    )}%`
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{(guarantee as Record<string, unknown>).contagem_actual as number} pessoas geradas</span>
-                <span>Objectivo: {(guarantee as Record<string, unknown>).objetivo as number} pessoas</span>
-              </div>
+            <div
+              style={{
+                width: '100%',
+                height: '6px',
+                background: 'var(--bg-muted)',
+                borderRadius: '3px',
+                overflow: 'hidden',
+                marginBottom: '8px',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: '3px',
+                  background: 'var(--blue-500)',
+                  width: `${Math.min(
+                    Math.round(
+                      ((guarantee as Record<string, unknown>).contagem_actual as number) /
+                      ((guarantee as Record<string, unknown>).objetivo as number) * 100
+                    ),
+                    100
+                  )}%`,
+                  transition: 'width 600ms var(--ease-out)',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <span>{(guarantee as Record<string, unknown>).contagem_actual as number} pessoas geradas</span>
+              <span>Objectivo: {(guarantee as Record<string, unknown>).objetivo as number} pessoas</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map((kpi, i) => {
-          const Icon = kpi.icon
-          return (
-            <div key={i} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-3`}>
-                <Icon className={`w-4 h-4 ${kpi.color}`} />
-              </div>
-              <p className="text-xl font-bold text-slate-900 leading-none mb-1">{kpi.value}</p>
-              <p className="text-xs text-slate-500">{kpi.label}</p>
+      {/* ── KPI Cards ── */}
+      <div
+        className="nc-kpi-grid-3"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 'var(--card-gap)',
+        }}
+      >
+        <KpiCard
+          label="Total de Chamadas"
+          value={totalChamadas}
+          animationDelay={0}
+        />
+        <KpiCard
+          label="Taxa de Sucesso"
+          value={`${successRate}%`}
+          delta={successRate >= 70 ? 0 : undefined}
+          animationDelay={60}
+        />
+        <KpiCard
+          label="Reservas Criadas"
+          value={reservasCriadas}
+          animationDelay={120}
+        />
+        <KpiCard
+          label="Taxa de Transferência"
+          value={formatPct(chamadasTransf, totalChamadas)}
+          animationDelay={180}
+        />
+        <KpiCard
+          label="Taxa de Reservas"
+          value={`${reservaRate}%`}
+          animationDelay={240}
+        />
+        <KpiCard
+          label="Receita Estimada"
+          value={`€${receitaEstimada.toLocaleString('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          animationDelay={300}
+        />
+      </div>
+
+      {/* ── Charts ── */}
+      {totalChamadas > 0 ? (
+        <div
+          className="nc-charts-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr',
+            gap: 'var(--card-gap)',
+          }}
+        >
+          {/* Chamadas vs Reservas — sempre últimos 7 dias */}
+          <div
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--surface-border)',
+              borderRadius: '16px',
+              padding: 'var(--card-padding)',
+            }}
+            className="animate-in"
+          >
+            <div style={{ marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Chamadas vs Reservas
+              </h2>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                Últimos 7 dias
+              </p>
             </div>
-          )
-        })}
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Calls by day */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900">Chamadas por dia</h2>
+            <CallsVsReservasChart data={stats7d ?? []} />
           </div>
-          <CallsChart data={stats.map(d => ({ stat_date: d.stat_date, total_chamadas: d.total_chamadas }))} />
+
+          {/* Call type */}
+          <div
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--surface-border)',
+              borderRadius: '16px',
+              padding: 'var(--card-padding)',
+            }}
+            className="animate-in"
+          >
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Tipo de chamada
+              </h2>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                Total acumulado
+              </p>
+            </div>
+            <CallTypeChart data={callTypeData} total={callTypeData.reduce((s, d) => s + d.count, 0)} />
+          </div>
         </div>
-
-        {/* Call type */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900">Tipo de chamada</h2>
-          </div>
-          <CallTypeChart data={callTypeData} total={totalChamadas} />
-        </div>
-      </div>
-
-      {/* Empty state when no data */}
-      {totalChamadas === 0 && (
-        <div className="bg-white rounded-xl border border-slate-100 p-8 text-center">
-          <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <AlertCircle className="w-5 h-5 text-slate-400" />
-          </div>
-          <p className="text-sm font-medium text-slate-700">Sem chamadas no período seleccionado</p>
-          <p className="text-xs text-slate-400 mt-1">Os dados aparecem aqui à medida que o agente atende chamadas.</p>
+      ) : (
+        <div
+          style={{
+            background: 'var(--surface-1)',
+            border: '1px solid var(--surface-border)',
+            borderRadius: '16px',
+          }}
+        >
+          <EmptyState
+            icon={<PhoneOff style={{ width: '40px', height: '40px' }} />}
+            title="Sem chamadas no período seleccionado"
+            description="Os dados aparecem aqui à medida que o agente atende chamadas."
+          />
         </div>
       )}
     </div>

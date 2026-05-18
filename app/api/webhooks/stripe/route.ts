@@ -53,11 +53,16 @@ export async function POST(req: NextRequest) {
         .eq('stripe_invoice_id', stripeInvoiceId)
         .single()
 
+      console.log(`[stripe/webhook] invoice.payment_succeeded — invoice_id: ${stripeInvoiceId} → estado_pagamento: pago`)
+
       if (cycle) {
         await db
           .from('billing_cycles')
           .update({ estado_pagamento: 'pago', pago_em: new Date().toISOString() })
           .eq('id', cycle.id)
+        console.log(`[stripe/webhook] billing_cycles updated → id: ${cycle.id}, restaurant_id: ${cycle.restaurant_id}`)
+      } else {
+        console.log(`[stripe/webhook] billing_cycle não encontrado para stripe_invoice_id: ${stripeInvoiceId} (0 rows updated — esperado em testes)`)
       }
 
       await notifySlack(
@@ -77,11 +82,16 @@ export async function POST(req: NextRequest) {
         .eq('stripe_invoice_id', stripeInvoiceId)
         .single()
 
+      console.log(`[stripe/webhook] invoice.payment_failed — invoice_id: ${stripeInvoiceId} → estado_pagamento: em_atraso`)
+
       if (cycle) {
         await db
           .from('billing_cycles')
           .update({ estado_pagamento: 'em_atraso' })
           .eq('id', cycle.id)
+        console.log(`[stripe/webhook] billing_cycles updated → id: ${cycle.id}, restaurant_id: ${cycle.restaurant_id}`)
+      } else {
+        console.log(`[stripe/webhook] billing_cycle não encontrado para stripe_invoice_id: ${stripeInvoiceId} (0 rows updated — esperado em testes)`)
       }
 
       await notifySlack(

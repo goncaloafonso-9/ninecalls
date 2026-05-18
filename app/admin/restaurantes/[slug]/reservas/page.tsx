@@ -3,7 +3,34 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { Calendar } from 'lucide-react'
-import { cn } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
+
+const thStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  textAlign: 'left',
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.07em',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  verticalAlign: 'middle',
+}
+
+const espacoLabel: Record<string, string> = {
+  sala: 'Sala', terraco: 'Terraço', esplanada: 'Esplanada',
+  sem_preferencia: 'Sem preferência', desconhecido: '—',
+}
+const servicoLabel: Record<string, string> = {
+  almoco: 'Almoço', jantar: 'Jantar', desconhecido: '—',
+}
 
 export default async function ReservasPage({
   params,
@@ -21,79 +48,91 @@ export default async function ReservasPage({
   if (!rest) notFound()
 
   const { data } = await db
-    .from('v_bookings_enriched')
-    .select('id, booking_datetime, nome_cliente, telefone_cliente, total_pessoas, espaco, servico, estado, criado_em')
+    .from('bookings')
+    .select('id, booking_datetime, cliente_nome, cliente_phone, number_of_people, espaco, servico, estado, confirmado_em')
     .eq('restaurant_id', rest.id)
     .order('booking_datetime', { ascending: false })
     .limit(100)
 
   const bookings = data ?? []
 
-  const espacoLabel: Record<string, string> = {
-    sala: 'Sala', terraco: 'Terraço', esplanada: 'Esplanada',
-    sem_preferencia: 'Sem preferência', desconhecido: '—',
-  }
-  const servicoLabel: Record<string, string> = {
-    almoco: 'Almoço', jantar: 'Jantar', desconhecido: '—',
-  }
-
   return (
-    <div className="p-6">
-      <div className="mb-5">
-        <p className="text-sm text-slate-500">{bookings.length} reservas (últimas 100)</p>
-      </div>
+    <div style={{ padding: 'var(--page-padding-y) var(--page-padding-x)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+        {bookings.length} reservas (últimas 100)
+      </p>
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        }}
+      >
         {bookings.length === 0 ? (
-          <div className="py-16 text-center">
-            <Calendar className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Sem reservas registadas</p>
-          </div>
+          <EmptyState
+            icon={<Calendar style={{ width: '40px', height: '40px' }} />}
+            title="Sem reservas registadas"
+            description="As reservas aparecem aqui à medida que o agente as cria."
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60">
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--surface-border)' }}>
                   {['Data Reserva', 'Nome', 'Telefone', 'Pessoas', 'Espaço', 'Serviço', 'Estado', 'Criado em'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((b: Record<string, unknown>) => (
-                  <tr key={b.id as string} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-700 font-medium">
-                      {formatDateTime(b.booking_datetime as string)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {(b.nome_cliente as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs font-mono text-slate-500">
-                      {(b.telefone_cliente as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {(b.total_pessoas as number) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {espacoLabel[b.espaco as string] ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {servicoLabel[b.servico as string] ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        'text-xs px-2 py-0.5 rounded-full border font-medium',
-                        b.estado === 'no_show'
-                          ? 'bg-red-50 text-red-600 border-red-200'
-                          : 'bg-green-50 text-green-700 border-green-200'
-                      )}>
-                        {b.estado === 'no_show' ? 'No-Show' : 'Confirmada'}
+                {bookings.map((b: Record<string, unknown>, idx) => (
+                  <tr
+                    key={b.id as string}
+                    className="nc-data-row"
+                    style={{ borderBottom: idx < bookings.length - 1 ? '1px solid var(--surface-border)' : 'none', transition: 'background 80ms ease' }}
+                  >
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        {formatDateTime(b.booking_datetime as string)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">
-                      {formatDate(b.criado_em as string)}
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                        {(b.cliente_nome as string) ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-geist-mono), monospace' }}>
+                        {(b.cliente_phone as string) ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {(b.number_of_people as number) ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {espacoLabel[b.espaco as string] ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {servicoLabel[b.servico as string] ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <StatusBadge variant={b.estado === 'no_show' ? 'no_show' : 'confirmada'}>
+                        {b.estado === 'no_show' ? 'No-Show' : 'Confirmada'}
+                      </StatusBadge>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        {formatDate(b.confirmado_em as string)}
+                      </span>
                     </td>
                   </tr>
                 ))}

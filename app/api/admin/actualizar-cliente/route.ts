@@ -10,7 +10,6 @@ const schema = z.object({
   morada: z.string(),
   email_faturacao: z.string().email(),
   telefone: z.string().optional(),
-  google_drive_folder_id: z.string().optional(),
   docusign_envelope_id: z.string().optional(),
   notas_internas: z.string().optional(),
 })
@@ -34,7 +33,6 @@ export async function POST(req: NextRequest) {
       morada: fields.morada,
       email_faturacao: fields.email_faturacao,
       telefone: fields.telefone ?? null,
-      google_drive_folder_id: fields.google_drive_folder_id ?? null,
       docusign_envelope_id: fields.docusign_envelope_id ?? null,
       notas_internas: fields.notas_internas ?? null,
     })

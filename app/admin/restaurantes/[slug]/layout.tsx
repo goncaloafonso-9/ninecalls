@@ -32,23 +32,48 @@ export default async function RestaurantSlugLayout({
   const restaurant = data as Restaurant & { clients: Pick<ClientProfile, 'id' | 'nome_empresa'> }
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {/* Page header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center gap-3 mb-1">
+      <div
+        style={{
+          background: 'var(--surface-1)',
+          borderBottom: '1px solid var(--surface-border)',
+          padding: '16px 24px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
           <Link
             href="/admin/restaurantes"
-            className="text-slate-400 hover:text-slate-600 transition-colors"
+            className="nc-hover-link-txt"
+            style={{
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              textDecoration: 'none',
+            }}
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft style={{ width: '16px', height: '16px' }} />
           </Link>
-          <h1 className="text-lg font-semibold text-slate-900">{restaurant.nome}</h1>
+          <h1
+            style={{
+              fontSize: '15px',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              margin: 0,
+            }}
+          >
+            {restaurant.nome}
+          </h1>
           <RestaurantStatusBadge estado={restaurant.estado} />
         </div>
-        <p className="text-xs text-slate-400 ml-7">
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, paddingLeft: '26px' }}>
           <Link
             href={`/admin/clientes/${restaurant.clients.id}`}
-            className="hover:text-slate-600 transition-colors"
+            className="nc-hover-link-txt"
+            style={{
+              color: 'var(--text-muted)',
+              textDecoration: 'none',
+            }}
           >
             {restaurant.clients.nome_empresa}
           </Link>
@@ -60,7 +85,7 @@ export default async function RestaurantSlugLayout({
       <RestaurantTabNav slug={slug} />
 
       {/* Tab content */}
-      <div className="flex-1">
+      <div style={{ flex: 1 }}>
         {children}
       </div>
     </div>

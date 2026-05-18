@@ -8,16 +8,17 @@ export type RestaurantEstado =
   | 'rescindido'
 
 export type CycleStatus = 'ativo' | 'concluido' | 'cancelado' | 'pausado'
-export type PaymentStatus = 'pendente' | 'pago' | 'em_atraso'
+export type PaymentStatus = 'pendente' | 'pago' | 'em_atraso' | 'isento'
 export type GuaranteeEstado = 'em_curso' | 'cumprido' | 'nao_cumprido_30_dias' | 'cancelado'
-export type BookingEstado = 'confirmada' | 'no_show'
+export type BookingEstado = 'confirmada' | 'no_show' | 'cancelado'
 export type TakeawayEstado = 'pendente_restaurante' | 'confirmado' | 'rejeitado'
-export type UltimaHoraEstado = 'pendente_restaurante' | 'aceite' | 'rejeitado'
-export type CallTipo = 'agendamento' | 'takeaway' | 'ultima_hora' | 'apoio' | 'transferencia' | 'spam_hangup'
+export type UltimaHoraEstado = 'pendente_restaurante' | 'aceite' | 'rejeitado' | 'nao_aplicavel'
+export type CallTipo = 'agendamento' | 'reagendamento' | 'cancelamento' | 'takeaway' | 'ultima_hora' | 'apoio' | 'transferencia' | 'spam_hangup'
 export type CallLingua = 'pt' | 'en'
 export type SoftwareReservasTipo = 'zenchef' | 'thefork' | 'outro' | 'nenhum'
 export type ConversaoManualTipo = 'adicionar' | 'remover'
-export type EspacoTipo = 'sala' | 'terraco' | 'esplanada' | 'sem_preferencia' | 'desconhecido'
+// espaco_tipo was a DB ENUM — now TEXT. Keep as string for compatibility.
+export type EspacoTipo = string
 export type ServicoTipo = 'almoco' | 'jantar' | 'desconhecido'
 
 // Admin overview row
@@ -71,6 +72,13 @@ export interface AdminSnapshot {
   total_rescindidos_mes: number
   total_minutos_mes: number
   total_conversoes_mes: number
+  clientes_em_atraso: {
+    restaurant_id: string
+    nome: string
+    cliente: string
+    dias_atraso: number
+    valor: number
+  }[]
 }
 
 // Client profile
@@ -84,8 +92,8 @@ export interface ClientProfile {
   email_faturacao: string
   telefone: string | null
   stripe_customer_id: string | null
+  stripe_payment_method_id: string | null
   password_alterada_cliente: boolean
-  google_drive_folder_id: string | null
   docusign_envelope_id: string | null
   notas_internas: string | null
   criado_em: string
@@ -108,17 +116,20 @@ export interface Restaurant {
   taxa_ativacao: number
   comissao_por_pessoa: number
   taxa_takeaway: number
-  pessoas_por_takeaway: number
   valor_estimado_por_pessoa: number
   valor_medio_takeaway: number
   objetivo_garantia: number
+  tem_garantia: boolean
+  taxa_mensal_fixa: number
   periodo_compromisso_dias: number
   valor_rescisao_antecipada: number
   data_inicio_compromisso: string | null
   em_compromisso: boolean
   data_live: string | null
-  google_drive_folder_id: string | null
+  google_drive_folder_link: string | null
   notas_internas: string | null
+  slack_channel_id: string | null
+  slack_channel_name: string | null
   criado_em: string
 }
 
@@ -145,7 +156,8 @@ export interface BillingCycle {
   dias_pausados: number
   snapshot_comissao_por_pessoa: number
   snapshot_taxa_takeaway: number
-  snapshot_pessoas_por_takeaway: number
+  snapshot_taxa_mensal_fixa: number
+  valor_mensalidade: number
   total_pessoas_reservas: number
   total_pessoas_ultima_hora: number
   total_takeaways_confirmados: number
@@ -154,9 +166,14 @@ export interface BillingCycle {
   valor_takeaways: number
   valor_total: number
   isento_faturacao: boolean
+  is_founder: boolean
+  skip_stripe_invoice: boolean
   estado_pagamento: PaymentStatus
   stripe_invoice_id: string | null
+  pago_em: string | null
+  email_intercalar_enviado_em: string | null
   minutos_usados: number
   reembolso_ativacao: boolean
   numero_fatura_at: string | null
+  valor_rescisao_antecipada: number
 }

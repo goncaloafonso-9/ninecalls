@@ -1,11 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+
+export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { RestaurantStatusBadge } from '@/components/admin/restaurant-status-badge'
 import { formatDate } from '@/lib/utils'
 import type { Restaurant } from '@/types'
 import { Store, ChevronRight } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default async function RestaurantesPage() {
   const supabase = await createClient()
@@ -22,46 +25,115 @@ export default async function RestaurantesPage() {
   const restaurants = data ?? []
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Restaurantes</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{restaurants.length} restaurantes</p>
-        </div>
-        <Link
-          href="/admin/onboarding/restaurante"
-          className="text-sm bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors"
+    <div
+      style={{
+        padding: 'var(--page-padding-y) var(--page-padding-x)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      {/* Header */}
+      <div>
+        <h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.025em',
+            margin: 0,
+          }}
         >
-          + Novo Restaurante
-        </Link>
+          Restaurantes
+        </h1>
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          {restaurants.length} restaurante{restaurants.length !== 1 ? 's' : ''}
+        </p>
+        <div style={{ marginTop: '16px' }}>
+          <Link
+            href="/admin/onboarding/restaurante"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              fontWeight: 500,
+              background: 'var(--gray-950)',
+              color: '#ffffff',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              transition: 'opacity 150ms ease',
+              whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-geist), sans-serif',
+            }}
+          >
+            + Novo Restaurante
+          </Link>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+      {/* List */}
+      <div
+        className="animate-in"
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+        }}
+      >
         {restaurants.length === 0 ? (
-          <div className="p-12 text-center">
-            <Store className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Nenhum restaurante criado ainda</p>
-          </div>
+          <EmptyState
+            icon={<Store style={{ width: '40px', height: '40px' }} />}
+            title="Nenhum restaurante criado ainda"
+            description="Adiciona o primeiro restaurante para começar."
+          />
         ) : (
-          restaurants.map((r: Restaurant & { clients: { nome_empresa: string } }) => (
+          restaurants.map((r: Restaurant & { clients: { nome_empresa: string } }, idx) => (
             <Link
               key={r.id}
               href={`/admin/restaurantes/${r.slug}`}
-              className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors group"
+              className="nc-hover-row"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 20px',
+                borderBottom: idx < restaurants.length - 1 ? '1px solid var(--surface-border)' : 'none',
+                textDecoration: 'none',
+              }}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
-                  <Store className="w-4 h-4 text-slate-400" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    background: 'var(--bg-muted)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Store style={{ width: '16px', height: '16px', color: 'var(--text-muted)' }} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{r.nome}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{r.clients?.nome_empresa} · /{r.slug}</p>
+                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+                    {r.nome}
+                  </p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                    {r.clients?.nome_empresa} · /{r.slug}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <RestaurantStatusBadge estado={r.estado} />
-                <span className="text-xs text-slate-400 hidden sm:block">{formatDate(r.criado_em)}</span>
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {formatDate(r.criado_em)}
+                </span>
+                <ChevronRight style={{ width: '14px', height: '14px', color: 'var(--text-disabled, var(--text-muted))' }} />
               </div>
             </Link>
           ))

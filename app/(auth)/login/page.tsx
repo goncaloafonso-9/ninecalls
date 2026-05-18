@@ -1,144 +1,160 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Phone } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [showPw, setShowPw]     = useState(false)
+  const [loading, setLoading]   = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-
     const supabase = createClient()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
     if (error) {
       toast.error('Credenciais inválidas', { description: error.message })
       setLoading(false)
       return
     }
-
     const role = data.user?.app_metadata?.role
     router.push(role === 'admin' ? '/admin/dashboard' : '/dashboard')
     router.refresh()
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-slate-900 flex-col items-center justify-center p-12 text-white">
-        <div className="max-w-md text-center">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-              <Phone className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-2xl font-semibold tracking-tight">Nine Calls</span>
-          </div>
-          <h1 className="text-3xl font-bold mb-4 leading-tight">
-            Atendimento inteligente para restaurantes
+    <div className="min-h-screen flex items-center justify-center bg-white px-4">
+      <div className="w-full max-w-sm">
+
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Image
+            src="/nine-call-ai-light.png"
+            alt="Nine Calls"
+            width={140}
+            height={56}
+            className="object-contain"
+            priority
+          />
+        </div>
+
+        {/* Heading */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight mb-2">
+            Bem-vindo de volta!
           </h1>
-          <p className="text-slate-400 text-lg leading-relaxed">
-            Reservas, takeaways e pedidos de última hora. 24 horas por dia, 7 dias por semana.
+          <p className="text-sm text-slate-500">
+            Introduz as tuas credenciais para continuar.
           </p>
-          <div className="mt-12 grid grid-cols-3 gap-6 text-center">
-            <div>
-              <div className="text-2xl font-bold">24/7</div>
-              <div className="text-slate-500 text-sm mt-1">Disponibilidade</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">PT+EN</div>
-              <div className="text-slate-500 text-sm mt-1">Idiomas</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">0€</div>
-              <div className="text-slate-500 text-sm mt-1">Sem resultado</div>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Right panel — login form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
-              <Phone className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-semibold text-slate-900">Nine Calls</span>
-          </div>
+        {/* Form */}
+        <form onSubmit={handleLogin} className="flex flex-col gap-4">
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900">Iniciar sessão</h2>
-            <p className="text-slate-500 mt-1 text-sm">Aceda à sua conta para continuar</p>
-          </div>
+          {/* Email */}
+          <input
+            type="email"
+            autoComplete="email"
+            placeholder="Endereço de email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            className="nc-auth-input"
+          />
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-slate-700 font-medium">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="goncaloafonso@ninecallsai.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="h-10 bg-white border-slate-200 focus:border-slate-400 focus:ring-slate-400/20 placeholder:text-slate-300"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-700 font-medium">
-                  Password
-                </Label>
-                <button
-                  type="button"
-                  className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
-                  onClick={() => toast.info('Contacte o administrador para repor a password')}
-                >
-                  Esqueceu a password?
-                </button>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="h-10 bg-white border-slate-200 focus:border-slate-400 focus:ring-slate-400/20 placeholder:text-slate-300"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-10 bg-slate-900 hover:bg-slate-800 text-white font-medium transition-colors"
+          {/* Password */}
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="nc-auth-input pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(!showPw)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+              aria-label={showPw ? 'Esconder password' : 'Mostrar password'}
             >
-              {loading ? 'A entrar...' : 'Entrar'}
-            </Button>
-          </form>
+              {showPw
+                ? <EyeOff className="w-4 h-4" />
+                : <Eye className="w-4 h-4" />
+              }
+            </button>
+          </div>
 
-          <p className="mt-8 text-center text-xs text-slate-400">
-            Nine Calls © {new Date().getFullYear()}
-          </p>
-        </div>
+          {/* Forgot password */}
+          <div className="flex justify-end -mt-1">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              Esqueceu a password?
+            </Link>
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="nc-auth-btn"
+          >
+            {loading ? 'A entrar...' : 'Entrar'}
+          </button>
+        </form>
+
+        <p className="mt-10 text-center text-xs text-slate-400">
+          Nine Calls © {new Date().getFullYear()}
+        </p>
       </div>
+
+      <style>{`
+        .nc-auth-input {
+          width: 100%;
+          height: 44px;
+          padding: 0 12px;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          background: #fff;
+          font-size: 14px;
+          color: #0f172a;
+          outline: none;
+          transition: border-color 150ms, box-shadow 150ms;
+          font-family: inherit;
+        }
+        .nc-auth-input::placeholder { color: #94a3b8; }
+        .nc-auth-input:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+        }
+        .nc-auth-btn {
+          width: 100%;
+          height: 44px;
+          border-radius: 8px;
+          border: none;
+          background: #2563eb;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 150ms, transform 100ms;
+          font-family: inherit;
+        }
+        .nc-auth-btn:hover:not(:disabled) { background: #1d4ed8; }
+        .nc-auth-btn:active:not(:disabled) { transform: scale(0.98); }
+        .nc-auth-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+      `}</style>
     </div>
   )
 }

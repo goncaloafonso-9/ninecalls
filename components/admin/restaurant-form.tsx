@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import type { Restaurant, SoftwareReservasTipo } from '@/types'
 import { AlertTriangle } from 'lucide-react'
 
+const safeFloat = (v: string, fb = 0) => v === '' ? fb : parseFloat(v)
+const safeInt   = (v: string, fb = 0) => v === '' ? fb : parseInt(v)
+
 interface RestaurantFormProps {
   restaurant: Restaurant
   rescindido?: boolean
@@ -59,13 +62,13 @@ export function RestaurantForm({ restaurant: r, rescindido }: RestaurantFormProp
     aceita_ultima_hora: r.aceita_ultima_hora,
     comissao_por_pessoa: r.comissao_por_pessoa,
     taxa_takeaway: r.taxa_takeaway,
-    pessoas_por_takeaway: r.pessoas_por_takeaway,
-    valor_estimado_por_pessoa: r.valor_estimado_por_pessoa,
+    taxa_mensal_fixa: r.taxa_mensal_fixa,
     valor_medio_takeaway: r.valor_medio_takeaway,
     periodo_compromisso_dias: r.periodo_compromisso_dias,
     valor_rescisao_antecipada: r.valor_rescisao_antecipada,
-    google_drive_folder_id: r.google_drive_folder_id ?? '',
+    google_drive_folder_link: r.google_drive_folder_link ?? '',
     notas_internas: r.notas_internas ?? '',
+    tem_garantia: r.tem_garantia,
   })
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -144,8 +147,8 @@ export function RestaurantForm({ restaurant: r, rescindido }: RestaurantFormProp
           </select>
         </Field>
 
-        <Field label="Google Drive Folder ID">
-          <Input value={form.google_drive_folder_id} onChange={e => set('google_drive_folder_id', e.target.value)} disabled={disabled} />
+        <Field label="Link Pasta Google Drive">
+          <Input value={form.google_drive_folder_link} onChange={e => set('google_drive_folder_link', e.target.value)} disabled={disabled} placeholder="https://drive.google.com/drive/folders/..." />
         </Field>
 
         {/* Toggles */}
@@ -174,6 +177,20 @@ export function RestaurantForm({ restaurant: r, rescindido }: RestaurantFormProp
             </div>
             <span className="text-sm text-slate-700">Aceita Última Hora</span>
           </label>
+          {!r.data_live && (
+            <label className={cn('flex items-center gap-2 cursor-pointer', disabled && 'opacity-50 cursor-not-allowed')}>
+              <div
+                onClick={() => !disabled && set('tem_garantia', !form.tem_garantia)}
+                className={cn(
+                  'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                  form.tem_garantia ? 'bg-slate-900' : 'bg-slate-200'
+                )}
+              >
+                <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', form.tem_garantia ? 'translate-x-4' : 'translate-x-0.5')} />
+              </div>
+              <span className="text-sm text-slate-700">Tem Período de Garantia</span>
+            </label>
+          )}
         </div>
       </div>
 
@@ -188,25 +205,22 @@ export function RestaurantForm({ restaurant: r, rescindido }: RestaurantFormProp
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <Field label="Comissão/Pessoa (€)" hint="Por pessoa em reservas e última hora">
-            <Input type="number" step="0.01" min="0" value={form.comissao_por_pessoa} onChange={e => set('comissao_por_pessoa', parseFloat(e.target.value))} disabled={disabled} />
+            <Input type="number" step="0.01" min="0" value={form.comissao_por_pessoa} onChange={e => set('comissao_por_pessoa', safeFloat(e.target.value))} disabled={disabled} />
           </Field>
           <Field label="Taxa Takeaway (€)" hint="Valor fixo por takeaway confirmado">
-            <Input type="number" step="0.01" min="0" value={form.taxa_takeaway} onChange={e => set('taxa_takeaway', parseFloat(e.target.value))} disabled={disabled || !form.tem_takeaway} />
+            <Input type="number" step="0.01" min="0" value={form.taxa_takeaway} onChange={e => set('taxa_takeaway', safeFloat(e.target.value))} disabled={disabled || !form.tem_takeaway} />
           </Field>
-          <Field label="Pessoas/Takeaway" hint="Pessoas contadas por takeaway">
-            <Input type="number" step="1" min="1" value={form.pessoas_por_takeaway} onChange={e => set('pessoas_por_takeaway', parseInt(e.target.value))} disabled={disabled || !form.tem_takeaway} />
-          </Field>
-          <Field label="Ticket Médio/Pessoa (€)" hint="Para cálculo de receita estimada">
-            <Input type="number" step="0.01" min="0" value={form.valor_estimado_por_pessoa} onChange={e => set('valor_estimado_por_pessoa', parseFloat(e.target.value))} disabled={disabled} />
+          <Field label="Mensalidade Fixa (€)" hint="Taxa mensal fixa por ciclo. 0 = sem mensalidade">
+            <Input type="number" step="0.01" min="0" value={form.taxa_mensal_fixa} onChange={e => set('taxa_mensal_fixa', safeFloat(e.target.value))} disabled={disabled} />
           </Field>
           <Field label="Ticket Médio Takeaway (€)">
-            <Input type="number" step="0.01" min="0" value={form.valor_medio_takeaway} onChange={e => set('valor_medio_takeaway', parseFloat(e.target.value))} disabled={disabled || !form.tem_takeaway} />
+            <Input type="number" step="0.01" min="0" value={form.valor_medio_takeaway} onChange={e => set('valor_medio_takeaway', safeFloat(e.target.value))} disabled={disabled || !form.tem_takeaway} />
           </Field>
           <Field label="Período Compromisso (dias)">
-            <Input type="number" step="1" min="0" value={form.periodo_compromisso_dias} onChange={e => set('periodo_compromisso_dias', parseInt(e.target.value))} disabled={disabled} />
+            <Input type="number" step="1" min="0" value={form.periodo_compromisso_dias} onChange={e => set('periodo_compromisso_dias', safeInt(e.target.value))} disabled={disabled} />
           </Field>
           <Field label="Valor Rescisão Antecipada (€)">
-            <Input type="number" step="0.01" min="0" value={form.valor_rescisao_antecipada} onChange={e => set('valor_rescisao_antecipada', parseFloat(e.target.value))} disabled={disabled} />
+            <Input type="number" step="0.01" min="0" value={form.valor_rescisao_antecipada} onChange={e => set('valor_rescisao_antecipada', safeFloat(e.target.value))} disabled={disabled} />
           </Field>
         </div>
       </div>

@@ -38,6 +38,13 @@ export async function POST(req: NextRequest) {
 
     if (fetchErr || !restaurant) return NextResponse.json({ error: 'Restaurante não encontrado' }, { status: 404 })
 
+    if (restaurant.estado === 'rescindido') {
+      return NextResponse.json({ error: 'Restaurante já está rescindido' }, { status: 422 })
+    }
+    if (restaurant.estado === 'em_construcao') {
+      return NextResponse.json({ error: 'Não é possível rescindir um restaurante em construção' }, { status: 422 })
+    }
+
     // During guarantee → exempt from billing
     const durante_garantia = restaurant.estado === 'em_garantia'
 
@@ -60,12 +67,25 @@ export async function POST(req: NextRequest) {
         .eq('id', activeCycle.id)
     }
 
-    // If during commitment and NOT during guarantee → add rescission value to cycle
+    // If during commitment and NOT during guarantee → store rescission value then recalculate total
     if (!durante_garantia && restaurant.em_compromisso && activeCycle) {
-      await db.rpc('fn_recalc_billing_cycle_total', {
+      const rescisaoValor = restaurant.valor_rescisao_antecipada ?? 0
+
+      if (rescisaoValor > 0) {
+        // Store the rescission fee on the cycle row (column added in nine-calls-fixes-v1.sql)
+        const { error: rescErr } = await db
+          .from('billing_cycles')
+          .update({ valor_rescisao_antecipada: rescisaoValor })
+          .eq('id', activeCycle.id)
+
+        if (rescErr) return NextResponse.json({ error: rescErr.message }, { status: 500 })
+      }
+
+      // Recalculate valor_total including the new column
+      const { error: recalcErr } = await db.rpc('fn_recalc_billing_cycle_total', {
         p_cycle_id: activeCycle.id,
-        p_rescisao_valor: restaurant.valor_rescisao_antecipada,
       })
+      if (recalcErr) return NextResponse.json({ error: recalcErr.message }, { status: 500 })
     }
 
     const { error: updateErr } = await db

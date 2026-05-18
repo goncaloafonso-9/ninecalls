@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { cn, formatEuro } from '@/lib/utils'
 import { Plus, Trash2, Check } from 'lucide-react'
 
+const safeFloat = (v: string, fb = 0) => v === '' ? fb : parseFloat(v)
+const safeInt   = (v: string, fb = 0) => v === '' ? fb : parseInt(v)
+
 interface AgenteDraft { nome: string; telnyx_agent_id: string }
 
 interface FormData {
@@ -18,14 +21,14 @@ interface FormData {
   aceita_ultima_hora: boolean
   taxa_ativacao: number
   comissao_por_pessoa: number
+  taxa_mensal_fixa: number
   taxa_takeaway: number
-  pessoas_por_takeaway: number
-  valor_estimado_por_pessoa: number
   valor_medio_takeaway: number
   objetivo_garantia: number
+  tem_garantia: boolean
   periodo_compromisso_dias: number
   valor_rescisao_antecipada: number
-  google_drive_folder_id: string
+  google_drive_folder_link: string
   agentes: AgenteDraft[]
 }
 
@@ -60,10 +63,10 @@ export function AddRestauranteWizard({ clients }: { clients: { id: string; nome_
     clientId: clients[0]?.id ?? '',
     nome: '', morada: '', telnyx_phone: '', transfer_phone: '',
     software_reservas: 'nenhum', tem_takeaway: false, aceita_ultima_hora: false,
-    taxa_ativacao: 300, comissao_por_pessoa: 2, taxa_takeaway: 3,
-    pessoas_por_takeaway: 2, valor_estimado_por_pessoa: 35, valor_medio_takeaway: 25,
-    objetivo_garantia: 100, periodo_compromisso_dias: 90, valor_rescisao_antecipada: 0,
-    google_drive_folder_id: '',
+    taxa_ativacao: 300, comissao_por_pessoa: 2, taxa_mensal_fixa: 0, taxa_takeaway: 3,
+    valor_medio_takeaway: 25,
+    objetivo_garantia: 100, tem_garantia: true, periodo_compromisso_dias: 90, valor_rescisao_antecipada: 0,
+    google_drive_folder_link: '',
     agentes: [{ nome: '', telnyx_agent_id: '' }],
   })
 
@@ -139,8 +142,8 @@ export function AddRestauranteWizard({ clients }: { clients: { id: string; nome_
             <Input value={form.transfer_phone} onChange={e => set('transfer_phone', e.target.value)} placeholder="+351..." />
           </div>
           <div>
-            <Label>Google Drive Folder ID</Label>
-            <Input value={form.google_drive_folder_id} onChange={e => set('google_drive_folder_id', e.target.value)} />
+            <Label>Link Pasta Google Drive</Label>
+            <Input value={form.google_drive_folder_link} onChange={e => set('google_drive_folder_link', e.target.value)} placeholder="https://drive.google.com/drive/folders/..." />
           </div>
           <div>
             <Label>Software de Reservas</Label>
@@ -164,14 +167,17 @@ export function AddRestauranteWizard({ clients }: { clients: { id: string; nome_
         <div className="border-t border-slate-100 pt-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Valores Comerciais</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div><Label>Investimento Inicial (€) *</Label><Input type="number" step="10" min="0" value={form.taxa_ativacao} onChange={e => set('taxa_ativacao', parseFloat(e.target.value))} /></div>
-            <div><Label>Comissão/Pessoa (€) *</Label><Input type="number" step="0.5" min="0" value={form.comissao_por_pessoa} onChange={e => set('comissao_por_pessoa', parseFloat(e.target.value))} /></div>
-            <div><Label>Taxa Takeaway (€)</Label><Input type="number" step="0.5" min="0" value={form.taxa_takeaway} onChange={e => set('taxa_takeaway', parseFloat(e.target.value))} disabled={!form.tem_takeaway} /></div>
-            <div><Label>Pessoas/Takeaway</Label><Input type="number" step="1" min="1" value={form.pessoas_por_takeaway} onChange={e => set('pessoas_por_takeaway', parseInt(e.target.value))} disabled={!form.tem_takeaway} /></div>
-            <div><Label>Objectivo Garantia (px) *</Label><Input type="number" step="10" min="0" value={form.objetivo_garantia} onChange={e => set('objetivo_garantia', parseInt(e.target.value))} /></div>
-            <div><Label>Compromisso (dias)</Label><Input type="number" step="30" min="0" value={form.periodo_compromisso_dias} onChange={e => set('periodo_compromisso_dias', parseInt(e.target.value))} /></div>
-            <div><Label>Valor Rescisão (€)</Label><Input type="number" step="50" min="0" value={form.valor_rescisao_antecipada} onChange={e => set('valor_rescisao_antecipada', parseFloat(e.target.value))} /></div>
-            <div><Label>Ticket Médio/Pessoa (€)</Label><Input type="number" step="5" min="0" value={form.valor_estimado_por_pessoa} onChange={e => set('valor_estimado_por_pessoa', parseFloat(e.target.value))} /></div>
+            <div><Label>Investimento Inicial (€) *</Label><Input type="number" step="10" min="0" value={form.taxa_ativacao} onChange={e => { const v = safeFloat(e.target.value); setForm(f => ({ ...f, taxa_ativacao: v, ...(v === 0 ? { tem_garantia: false } : {}) })) }} /></div>
+            <div><Label>Comissão/Pessoa (€) *</Label><Input type="number" step="0.5" min="0" value={form.comissao_por_pessoa} onChange={e => set('comissao_por_pessoa', safeFloat(e.target.value))} /></div>
+            <div><Label>Mensalidade Fixa (€)</Label><Input type="number" step="0.01" min="0" value={form.taxa_mensal_fixa} onChange={e => set('taxa_mensal_fixa', safeFloat(e.target.value))} /></div>
+            <div><Label>Taxa Takeaway (€)</Label><Input type="number" step="0.5" min="0" value={form.taxa_takeaway} onChange={e => set('taxa_takeaway', safeFloat(e.target.value))} disabled={!form.tem_takeaway} /></div>
+            <div className="sm:col-span-4 flex items-center gap-4 pt-1">
+              <Toggle value={form.tem_garantia} onChange={v => set('tem_garantia', v)} label="Tem Período de Garantia" />
+              {form.taxa_ativacao === 0 && <span className="text-xs text-amber-600">Investimento = €0 → sem garantia obrigatório</span>}
+            </div>
+            <div><Label>Objectivo Garantia (pessoas) *</Label><Input type="number" step="10" min="0" value={form.objetivo_garantia} onChange={e => set('objetivo_garantia', safeInt(e.target.value))} disabled={!form.tem_garantia} /></div>
+            <div><Label>Compromisso (dias)</Label><Input type="number" step="30" min="0" value={form.periodo_compromisso_dias} onChange={e => set('periodo_compromisso_dias', safeInt(e.target.value))} /></div>
+            <div><Label>Valor Rescisão (€)</Label><Input type="number" step="50" min="0" value={form.valor_rescisao_antecipada} onChange={e => set('valor_rescisao_antecipada', safeFloat(e.target.value))} /></div>
           </div>
         </div>
       </div>

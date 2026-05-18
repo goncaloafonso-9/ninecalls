@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/api-auth'
 import { stripe } from '@/lib/stripe'
+import { createSlackChannelForRestaurant } from '@/lib/slack'
 import { z } from 'zod'
 
 const restaurantSchema = z.object({
@@ -14,14 +15,14 @@ const restaurantSchema = z.object({
   aceita_ultima_hora: z.boolean().default(false),
   taxa_ativacao: z.number().min(0),
   comissao_por_pessoa: z.number().min(0),
+  taxa_mensal_fixa: z.number().min(0).default(0),
   taxa_takeaway: z.number().min(0).default(0),
-  pessoas_por_takeaway: z.number().int().min(1).default(2),
-  valor_estimado_por_pessoa: z.number().min(0).default(0),
   valor_medio_takeaway: z.number().min(0).default(0),
   objetivo_garantia: z.number().int().min(0),
+  tem_garantia: z.boolean().default(true),
   periodo_compromisso_dias: z.number().int().min(0).default(0),
   valor_rescisao_antecipada: z.number().min(0).default(0),
-  google_drive_folder_id: z.string().optional(),
+  google_drive_folder_link: z.string().optional(),
   agentes: z.array(z.object({
     nome: z.string().min(1),
     telnyx_agent_id: z.string().min(1),
@@ -36,11 +37,33 @@ const clientSchema = z.object({
   email_faturacao: z.string().email(),
   telefone: z.string().optional(),
   password: z.string().min(8),
-  google_drive_folder_id: z.string().optional(),
   docusign_envelope_id: z.string().optional(),
   notas_internas: z.string().optional(),
   restaurantes: z.array(restaurantSchema).min(1),
 })
+
+// Mirrors fn_slugify() in the database schema.
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .replace(/-+/g, '-')
+    .slice(0, 80)
+}
+
+async function generateUniqueSlug(db: ReturnType<typeof createAdminClient>, nome: string): Promise<string> {
+  const base = slugify(nome) || 'restaurante'
+  let slug = base
+  let counter = 2
+  while (true) {
+    const { data } = await db.from('restaurants').select('id').eq('slug', slug).maybeSingle()
+    if (!data) return slug
+    slug = `${base}-${counter++}`
+  }
+}
 
 export async function POST(req: NextRequest) {
   const { errorResponse } = await requireAdmin()
@@ -79,26 +102,27 @@ export async function POST(req: NextRequest) {
       email_contacto: data.email_contacto,
       email_faturacao: data.email_faturacao,
       telefone: data.telefone ?? null,
-      google_drive_folder_id: data.google_drive_folder_id ?? null,
       docusign_envelope_id: data.docusign_envelope_id ?? null,
       notas_internas: data.notas_internas ?? null,
-      // Password encrypted via pgcrypto (raw SQL not available via Supabase JS — use RPC)
     })
     .select('id')
     .single()
 
   if (clientErr || !client) {
-    // Rollback auth user
     await db.auth.admin.deleteUser(authUser.user.id)
     return NextResponse.json({ error: clientErr?.message ?? 'Erro ao criar cliente' }, { status: 500 })
   }
 
-  // Store encrypted password
-  await db.rpc('store_client_password', {
+  // Store encrypted password via RPC (uses pgp_sym_encrypt server-side)
+  const { error: pwErr } = await db.rpc('store_client_password', {
     p_client_id: client.id,
     p_password: data.password,
     p_enc_key: ENC_KEY,
   })
+  if (pwErr) {
+    // Non-blocking: password can be re-set later via change-client-password
+    console.error('store_client_password error:', pwErr.message)
+  }
 
   // Create Stripe customer (non-blocking — don't fail onboarding if Stripe fails)
   try {
@@ -123,11 +147,14 @@ export async function POST(req: NextRequest) {
   const restaurantIds: string[] = []
   for (let i = 0; i < data.restaurantes.length; i++) {
     const r = data.restaurantes[i]
+    const slug = await generateUniqueSlug(db, r.nome)
+
     const { data: rest, error: restErr } = await db
       .from('restaurants')
       .insert({
         client_id: client.id,
         nome: r.nome,
+        slug,
         morada: r.morada ?? null,
         ordem: i + 1,
         telnyx_phone: r.telnyx_phone ?? null,
@@ -137,14 +164,14 @@ export async function POST(req: NextRequest) {
         aceita_ultima_hora: r.aceita_ultima_hora,
         taxa_ativacao: r.taxa_ativacao,
         comissao_por_pessoa: r.comissao_por_pessoa,
+        taxa_mensal_fixa: r.taxa_mensal_fixa,
         taxa_takeaway: r.taxa_takeaway,
-        pessoas_por_takeaway: r.pessoas_por_takeaway,
-        valor_estimado_por_pessoa: r.valor_estimado_por_pessoa,
         valor_medio_takeaway: r.valor_medio_takeaway,
         objetivo_garantia: r.objetivo_garantia,
+        tem_garantia: r.tem_garantia,
         periodo_compromisso_dias: r.periodo_compromisso_dias,
         valor_rescisao_antecipada: r.valor_rescisao_antecipada,
-        google_drive_folder_id: r.google_drive_folder_id ?? null,
+        google_drive_folder_link: r.google_drive_folder_link ?? null,
       })
       .select('id')
       .single()
@@ -154,9 +181,8 @@ export async function POST(req: NextRequest) {
     }
     restaurantIds.push(rest.id)
 
-    // Create agents for this restaurant
     if (r.agentes.length > 0) {
-      await db.from('agents').insert(
+      const { error: agentErr } = await db.from('agents').insert(
         r.agentes.map(a => ({
           restaurant_id: rest.id,
           nome: a.nome,
@@ -164,6 +190,16 @@ export async function POST(req: NextRequest) {
           activo: true,
         }))
       )
+      if (agentErr) {
+        return NextResponse.json({ error: `Restaurante criado mas erro ao adicionar agentes: ${agentErr.message}` }, { status: 500 })
+      }
+    }
+
+    // Auto-create Slack channel (non-blocking — failure shows warning in restaurant page)
+    try {
+      await createSlackChannelForRestaurant(rest.id, slug)
+    } catch (e) {
+      console.error(`[criar-cliente] Slack channel creation failed for ${slug}:`, e)
     }
   }
 

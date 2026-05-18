@@ -1,17 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { validateInternalSecret, notifySlack } from '@/lib/internal-auth'
+import { sendSlackMessage, sendSlackAlert } from '@/lib/slack'
+import { validateCronRequest } from '@/lib/cron-auth'
+import { buildRelatorioIntercalarHtml } from '@/lib/emails/relatorio-intercalar'
 
 export const runtime = 'nodejs'
 
-// Called by WF-DC-06 at 12:00 daily.
-// Sends 15-day mid-cycle report to clients whose active cycle started exactly 15 days ago.
-export async function POST(req: NextRequest) {
-  const authError = validateInternalSecret(req)
-  if (authError) return authError
+// POST /api/internal/email-15-dias
+// Versão standalone do WF-DC-06. Pode ser chamado pelo n8n ou Vercel cron independentemente.
+// Encontra ciclos activos com data_inicio = hoje - 15 dias (e email ainda não enviado) e envia relatório intercalar.
+// Auth: CRON_SECRET.
+export async function POST(request: Request) {
+  if (!validateCronRequest(request)) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   const resendApiKey = process.env.RESEND_API_KEY
-  const emailFrom = process.env.EMAIL_FROM ?? 'goncaloafonso@ninecallsai.com'
+  const emailFrom = process.env.RESEND_FROM_EMAIL ?? process.env.EMAIL_FROM ?? 'noreply@ninecalls.io'
+  const emailReplyTo = process.env.EMAIL_REPLY_TO ?? 'hello@ninecallsai.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.ninecalls.io'
 
   if (!resendApiKey) {
     return NextResponse.json({ error: 'RESEND_API_KEY não configurada' }, { status: 500 })
@@ -23,20 +30,20 @@ export async function POST(req: NextRequest) {
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15)
   const targetDate = fifteenDaysAgo.toISOString().split('T')[0]
 
-  // Find active cycles that started 15 days ago
+  // Idempotência: só ciclos que ainda não receberam o email
   const { data: cycles, error } = await db
     .from('billing_cycles')
     .select(`
       id, numero_ciclo, data_inicio, valor_total,
       total_pessoas_reservas, total_pessoas_ultima_hora, total_takeaways_confirmados,
-      snapshot_comissao_por_pessoa, snapshot_taxa_takeaway,
       restaurants (
-        id, nome, estado,
+        id, nome, slug,
         clients (nome_empresa, email_faturacao)
       )
     `)
     .eq('estado', 'ativo')
     .eq('data_inicio', targetDate)
+    .is('email_intercalar_enviado_em', null)
 
   if (error) {
     console.error('[email-15-dias] fetch error:', error)
@@ -55,89 +62,59 @@ export async function POST(req: NextRequest) {
 
     if (!client?.email_faturacao || !restaurant) continue
 
-    // Gather call stats for this cycle
     const { data: calls } = await db
       .from('calls')
-      .select('resultado, tipo_chamada')
+      .select('call_successful, tipo_chamada')
       .eq('billing_cycle_id', cycle.id)
 
+    const { data: bookings } = await db
+      .from('bookings')
+      .select('id')
+      .eq('billing_cycle_id', cycle.id)
+      .eq('estado', 'confirmada')
+
     const totalChamadas = calls?.length ?? 0
-    const sucessos = calls?.filter(c => c.resultado === 'sucesso').length ?? 0
+    const sucessos = calls?.filter(c => c.call_successful === true).length ?? 0
     const transferencias = calls?.filter(c => c.tipo_chamada === 'transferencia').length ?? 0
-
-    // Guarantee progress (ciclo 0 only)
-    let guaranteeSection = ''
-    if (cycle.numero_ciclo === 0) {
-      const { data: gt } = await db
-        .from('guarantee_tracking')
-        .select('contagem_actual, objetivo')
-        .eq('restaurant_id', restaurant.id)
-        .single()
-
-      if (gt) {
-        const pct = Math.min(100, Math.round(((gt.contagem_actual ?? 0) / (gt.objetivo ?? 1)) * 100))
-        guaranteeSection = `
-          <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#1a1a1a;border-top:1px solid #e5e7eb;padding-top:16px;">PROGRESSO DA GARANTIA</td></tr>
-          <tr><td style="padding:4px 0;color:#6b7280;">Pessoas contabilizadas</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${gt.contagem_actual ?? 0} / ${gt.objetivo ?? '?'} (${pct}%) — Dia 15 de 30</td></tr>
-        `
-      }
-    }
+    const successRate = totalChamadas > 0 ? Math.round((sucessos / totalChamadas) * 100) : 0
+    const taxaTransferencia = totalChamadas > 0 ? Math.round((transferencias / totalChamadas) * 100) : 0
+    const reservasConfirmadas = bookings?.length ?? 0
 
     const valorAcumulado = Number(cycle.valor_total) || 0
-    const successRate = totalChamadas > 0 ? Math.round((sucessos / totalChamadas) * 100) : 0
+    const receitaEstimada =
+      ((cycle.total_pessoas_reservas ?? 0) + (cycle.total_pessoas_ultima_hora ?? 0)) * 20
+      + (cycle.total_takeaways_confirmados ?? 0) * 35
+    const roi = valorAcumulado > 0
+      ? Math.round(((receitaEstimada - valorAcumulado) / valorAcumulado) * 100)
+      : 0
 
-    const html = `
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Relatório 15 Dias — ${restaurant.nome}</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:32px 16px;">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
-    <div style="background:#111827;padding:24px 32px;">
-      <p style="margin:0;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;">Nine Calls</p>
-      <h1 style="margin:8px 0 0;color:#fff;font-size:20px;font-weight:600;">${restaurant.nome} — Relatório dos primeiros 15 dias</h1>
-    </div>
-    <div style="padding:24px 32px;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#1a1a1a;">CHAMADAS</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Total de chamadas</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${totalChamadas}</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Atendidas com sucesso</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${sucessos} (${successRate}%)</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Transferidas</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${transferencias}</td></tr>
-
-        <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#1a1a1a;border-top:1px solid #e5e7eb;padding-top:16px;">RESULTADOS</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Reservas confirmadas</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${cycle.total_pessoas_reservas ?? 0} pessoas</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Takeaways confirmados</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${cycle.total_takeaways_confirmados ?? 0}</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Última hora aceites</td><td style="padding:4px 0;font-weight:500;color:#1a1a1a;text-align:right;">${cycle.total_pessoas_ultima_hora ?? 0} pessoas</td></tr>
-
-        <tr><td colspan="2" style="padding:8px 0;font-weight:600;color:#1a1a1a;border-top:1px solid #e5e7eb;padding-top:16px;">FATURAÇÃO ACUMULADA</td></tr>
-        <tr><td style="padding:4px 0;color:#6b7280;">Valor acumulado</td><td style="padding:4px 0;font-weight:600;color:#059669;text-align:right;">€${valorAcumulado.toFixed(2)} (ciclo em curso)</td></tr>
-
-        ${guaranteeSection}
-      </table>
-
-      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;">
-        <p style="margin:0;color:#6b7280;font-size:13px;">Qualquer questão, estou disponível: <a href="mailto:goncaloafonso@ninecallsai.com" style="color:#059669;">goncaloafonso@ninecallsai.com</a></p>
-        <p style="margin:8px 0 0;color:#6b7280;font-size:13px;">Gonçalo · Nine Calls</p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`
+    const html = buildRelatorioIntercalarHtml({
+      restaurantNome: restaurant.nome,
+      clienteNomeEmpresa: client.nome_empresa,
+      numeroCiclo: cycle.numero_ciclo,
+      dataInicio: cycle.data_inicio,
+      totalChamadas,
+      sucessos,
+      successRate,
+      taxaTransferencia,
+      reservasConfirmadas,
+      takeawaysConfirmados: cycle.total_takeaways_confirmados ?? 0,
+      pessoasUltimaHora: cycle.total_pessoas_ultima_hora ?? 0,
+      valorAcumulado,
+      receitaEstimada,
+      roi,
+      appUrl,
+    })
 
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${resendApiKey}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendApiKey}` },
         body: JSON.stringify({
           from: emailFrom,
+          reply_to: emailReplyTo,
           to: [client.email_faturacao],
-          subject: `${restaurant.nome} — Relatório dos primeiros 15 dias`,
+          subject: `${restaurant.nome} — Relatório intercalar dos primeiros 15 dias`,
           html,
         }),
       })
@@ -147,21 +124,27 @@ export async function POST(req: NextRequest) {
         throw new Error(`Resend error: ${errText}`)
       }
 
-      await notifySlack(
-        process.env.SLACK_CHANNEL_FATURACAO ?? '',
-        `📊 Mini-relatório 15 dias enviado — ${restaurant.nome}`
-      )
+      // Marcar como enviado (idempotência)
+      await db
+        .from('billing_cycles')
+        .update({ email_intercalar_enviado_em: new Date().toISOString() })
+        .eq('id', cycle.id)
 
+      await sendSlackMessage({ channel: 'clientes', text: `📧 Email mid-cycle enviado — ${restaurant.nome} → ${client.email_faturacao}` })
       results.push({ restaurant: restaurant.nome, email: client.email_faturacao, status: 'sent' })
     } catch (err) {
       console.error(`[email-15-dias] error for ${restaurant.nome}:`, err)
+      await sendSlackAlert('sistema', `Erro ao enviar email mid-cycle — ${restaurant.nome}`, String(err), 'error')
       results.push({ restaurant: restaurant.nome, email: client.email_faturacao, status: 'error' })
     }
   }
 
-  return NextResponse.json({
-    ok: true,
+  console.log(JSON.stringify({
+    event: 'email-15-dias',
     enviados: results.filter(r => r.status === 'sent').length,
-    results,
-  })
+    erros: results.filter(r => r.status === 'error').length,
+    timestamp: new Date().toISOString(),
+  }))
+
+  return NextResponse.json({ ok: true, enviados: results.filter(r => r.status === 'sent').length, results })
 }

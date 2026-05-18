@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
-import { Inter, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
-const inter = Inter({
-  variable: '--font-sans',
+const geist = Geist({
+  variable: '--font-geist',
   subsets: ['latin'],
   display: 'swap',
 })
@@ -26,10 +27,20 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt" className={`${inter.variable} ${geistMono.variable} h-full`}>
-      <body className="h-full bg-background text-foreground antialiased">
-        {children}
-        <Toaster position="top-right" richColors closeButton />
+    <html lang="pt" className={`${geist.variable} ${geistMono.variable} h-full`} suppressHydrationWarning>
+      <body
+        className="h-full antialiased"
+        suppressHydrationWarning
+        style={{
+          fontFamily: 'var(--font-geist), system-ui, sans-serif',
+          backgroundColor: 'var(--bg-base)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <ThemeProvider attribute="class" defaultTheme="light" enableColorScheme={false}>
+          {children}
+          <Toaster position="top-right" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   )

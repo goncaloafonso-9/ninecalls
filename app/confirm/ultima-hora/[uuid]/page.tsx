@@ -1,7 +1,7 @@
+export const dynamic = 'force-dynamic'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
-import { format } from 'date-fns'
-import { pt } from 'date-fns/locale'
 import { ConfirmActions } from '@/components/confirm/confirm-actions'
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 
@@ -17,6 +17,24 @@ const ESPACO_LABELS: Record<string, string> = {
   desconhecido:    '—',
 }
 
+function formatDatetimePT(date: Date): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'Europe/Lisbon',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatTimePT(date: Date): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'Europe/Lisbon',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 export default async function ConfirmUltimaHoraPage({ params }: Props) {
   const { uuid } = await params
 
@@ -24,7 +42,7 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
 
   const { data: pedido } = await supabase
     .from('ultima_hora_requests')
-    .select('id, estado, datetime_solicitado, pessoas, espaco_preferido, expira_em, cliente_nome, cliente_phone, criado_em')
+    .select('id, estado, ultima_hora_datetime, pessoas, espaco_preferido, expira_em, cliente_nome, cliente_phone, criado_em, restaurants(nome)')
     .eq('id', uuid)
     .single()
 
@@ -33,11 +51,30 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
   const now = new Date()
   const expirado = pedido.expira_em ? now > new Date(pedido.expira_em) : true
   const jaRespondido = pedido.estado !== 'pendente_restaurante'
+  const restaurantName = Array.isArray(pedido.restaurants)
+    ? pedido.restaurants[0]?.nome
+    : (pedido.restaurants as { nome?: string } | null)?.nome
 
   if (jaRespondido) {
+    if (pedido.estado === 'nao_aplicavel') {
+      return (
+        <PageShell restaurantName={restaurantName}>
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-5">
+              <XCircle className="w-8 h-8 text-slate-400" />
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 mb-2">Confirmação não disponível</h1>
+            <p className="text-slate-500 text-sm">
+              Este restaurante não disponibiliza confirmação de pedidos de última hora.
+            </p>
+          </div>
+        </PageShell>
+      )
+    }
+
     const aceite = pedido.estado === 'aceite'
     return (
-      <PageShell>
+      <PageShell restaurantName={restaurantName}>
         <div className="text-center">
           <div className={`w-16 h-16 rounded-2xl ${aceite ? 'bg-emerald-100' : 'bg-slate-100'} flex items-center justify-center mx-auto mb-5`}>
             {aceite
@@ -48,9 +85,7 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
           <h1 className="text-xl font-bold text-slate-900 mb-2">
             {aceite ? 'Pedido aceite' : 'Pedido rejeitado'}
           </h1>
-          <p className="text-slate-500 text-sm">
-            Este pedido já foi respondido.
-          </p>
+          <p className="text-slate-500 text-sm">Este pedido já foi respondido.</p>
         </div>
       </PageShell>
     )
@@ -58,7 +93,7 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
 
   if (expirado) {
     return (
-      <PageShell>
+      <PageShell restaurantName={restaurantName}>
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5">
             <AlertCircle className="w-8 h-8 text-amber-500" />
@@ -72,12 +107,11 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
     )
   }
 
-  const dt = pedido.datetime_solicitado ? new Date(pedido.datetime_solicitado) : null
+  const dt = pedido.ultima_hora_datetime ? new Date(pedido.ultima_hora_datetime) : null
 
   return (
-    <PageShell>
+    <PageShell restaurantName={restaurantName}>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
             <Clock className="w-6 h-6 text-amber-600" />
@@ -88,14 +122,10 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Details */}
         <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
           <DetailRow label="Cliente" value={pedido.cliente_nome ?? pedido.cliente_phone ?? '—'} />
           {dt && (
-            <DetailRow
-              label="Para quando"
-              value={format(dt, "d 'de' MMMM 'às' HH:mm", { locale: pt })}
-            />
+            <DetailRow label="Para quando" value={formatDatetimePT(dt)} />
           )}
           {pedido.pessoas && (
             <DetailRow label="Pessoas" value={String(pedido.pessoas)} />
@@ -108,33 +138,33 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
           )}
         </div>
 
-        {/* Expiry */}
         {pedido.expira_em && (
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Clock className="w-3.5 h-3.5" />
-            <span>
-              Expira às {format(new Date(pedido.expira_em), 'HH:mm', { locale: pt })}
-            </span>
+            <span>Expira às {formatTimePT(new Date(pedido.expira_em))}</span>
           </div>
         )}
 
-        {/* Actions */}
         <ConfirmActions uuid={uuid} type="ultima-hora" />
       </div>
     </PageShell>
   )
 }
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ restaurantName, children }: { restaurantName?: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-1">
           <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Clock className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-semibold text-slate-700">Nine Calls</span>
         </div>
+        {restaurantName
+          ? <p className="text-xs text-slate-400 mb-7 ml-9">{restaurantName}</p>
+          : <div className="mb-7" />
+        }
         {children}
       </div>
     </div>

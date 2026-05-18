@@ -1,10 +1,13 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+
+export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 import type { ClientProfile } from '@/types'
 import { Building2, ChevronRight } from 'lucide-react'
+import { ClientesEmptyAction } from '@/components/admin/clientes-empty-action'
 
 export default async function ClientesPage() {
   const supabase = await createClient()
@@ -20,52 +23,122 @@ export default async function ClientesPage() {
   const clients = data ?? []
 
   return (
-    <div className="p-6 space-y-6">
+    <div
+      style={{
+        padding: 'var(--page-padding-y) var(--page-padding-x)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Clientes</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{clients.length} clientes</p>
+        <h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.025em',
+            margin: 0,
+          }}
+        >
+          Clientes
+        </h1>
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          {clients.length} cliente{clients.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+      {/* List */}
+      <div
+        className="animate-in"
+        style={{
+          background: 'var(--surface-1)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+        }}
+      >
         {clients.length === 0 ? (
-          <div className="p-12 text-center">
-            <Building2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Nenhum cliente criado ainda</p>
-            <Link href="/admin/onboarding/novo" className="mt-3 inline-block text-sm text-blue-600 hover:text-blue-700">
-              Criar primeiro cliente →
-            </Link>
-          </div>
+          <ClientesEmptyAction />
         ) : (
-          clients.map((client: ClientProfile & { restaurants: { id: string }[] }) => (
+          clients.map((client: ClientProfile & { restaurants: { id: string }[] }, idx) => (
             <Link
               key={client.id}
               href={`/admin/clientes/${client.id}`}
-              className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors group"
+              className="nc-hover-row"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 20px',
+                borderBottom: idx < clients.length - 1 ? '1px solid var(--surface-border)' : 'none',
+                textDecoration: 'none',
+              }}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
-                  <Building2 className="w-4 h-4 text-slate-400" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    background: 'var(--bg-muted)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Building2 style={{ width: '16px', height: '16px', color: 'var(--text-muted)' }} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{client.nome_empresa}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+                    {client.nome_empresa}
+                  </p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
                     {client.email_contacto} · NIF {client.nif}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs text-slate-500">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
                     {client.restaurants?.length ?? 0} restaurante{(client.restaurants?.length ?? 0) !== 1 ? 's' : ''}
                   </p>
-                  <p className="text-xs text-slate-400">{formatDate(client.criado_em)}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                    {formatDate(client.criado_em)}
+                  </p>
                 </div>
                 {client.stripe_customer_id ? (
-                  <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full">Stripe ✓</span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: 'var(--green-50)',
+                      color: 'var(--green-700)',
+                      border: '1px solid var(--green-200, #bbf7d0)',
+                      padding: '2px 8px',
+                      borderRadius: '100px',
+                    }}
+                  >
+                    Stripe ✓
+                  </span>
                 ) : (
-                  <span className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">Sem Stripe</span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: 'var(--bg-muted)',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--surface-border)',
+                      padding: '2px 8px',
+                      borderRadius: '100px',
+                    }}
+                  >
+                    Sem Stripe
+                  </span>
                 )}
-                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                <ChevronRight style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }} />
               </div>
             </Link>
           ))

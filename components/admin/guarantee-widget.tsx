@@ -33,7 +33,7 @@ export function GuaranteeWidget({
   conversoes,
 }: GuaranteeWidgetProps) {
   const router = useRouter()
-  const pct = clampPercent((contagem_actual / objetivo) * 100)
+  const pct = clampPercent(objetivo > 0 ? (contagem_actual / objetivo) * 100 : 0)
   const urgente = dia_efectivo >= 25
   const alerta = dia_efectivo >= 20 && !urgente
   const pessoas_em_falta = Math.max(0, objetivo - contagem_actual)

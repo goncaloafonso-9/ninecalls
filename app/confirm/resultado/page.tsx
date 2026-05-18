@@ -7,7 +7,7 @@ interface Props {
 export default async function ResultadoPage({ searchParams }: Props) {
   const { type = 'takeaway', action = 'confirmar' } = await searchParams
 
-  const isAccept = action === 'confirmar' || action === 'aceitar'
+  const isAccept = action === 'confirmar'
   const typeLabel = type === 'ultima-hora' ? 'pedido de última hora' : 'pedido de takeaway'
   const actionLabel = isAccept
     ? (type === 'ultima-hora' ? 'aceite' : 'confirmado')

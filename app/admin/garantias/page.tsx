@@ -1,9 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { cn, clampPercent, pluralPessoa } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
+import { clampPercent, pluralPessoa } from '@/lib/utils'
 import type { GuaranteeStatus } from '@/types'
 import { ShieldCheck, AlertTriangle, AlertOctagon } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default async function GarantiasPage() {
   const supabase = await createClient()
@@ -20,81 +23,173 @@ export default async function GarantiasPage() {
   const guarantees = (data ?? []) as GuaranteeStatus[]
 
   return (
-    <div className="p-6 space-y-6">
+    <div
+      style={{
+        padding: 'var(--page-padding-y) var(--page-padding-x)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Garantias Activas</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Ordenadas por urgência — {guarantees.length} garantias em curso
+        <h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.025em',
+            margin: 0,
+          }}
+        >
+          Garantias Activas
+        </h1>
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          Ordenadas por urgência · {guarantees.length} garantias em curso
         </p>
       </div>
 
       {guarantees.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
-          <ShieldCheck className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Nenhuma garantia activa de momento</p>
+        <div
+          style={{
+            background: 'var(--surface-1)',
+            border: '1px solid var(--surface-border)',
+            borderRadius: '16px',
+          }}
+        >
+          <EmptyState
+            icon={<ShieldCheck style={{ width: '40px', height: '40px' }} />}
+            title="Nenhuma garantia activa"
+            description="Quando um restaurante entrar em período de garantia, aparece aqui."
+          />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {guarantees.map(g => {
             const pct = clampPercent(g.progresso_pct)
             const urgente = g.dia_efectivo >= 25
             const alerta = g.dia_efectivo >= 20 && !urgente
 
+            const borderColor = urgente
+              ? 'var(--red-200, #fecaca)'
+              : alerta
+              ? 'var(--amber-200, #fde68a)'
+              : 'var(--surface-border)'
+
+            const bgColor = urgente
+              ? 'rgba(254,242,242,0.4)'
+              : alerta
+              ? 'rgba(255,251,235,0.4)'
+              : 'var(--surface-1)'
+
+            const barColor = pct >= 100
+              ? 'var(--green-500)'
+              : urgente
+              ? 'var(--red-500)'
+              : alerta
+              ? '#f59e0b'
+              : 'var(--blue-500)'
+
             return (
               <div
                 key={g.restaurant_id}
-                className={cn(
-                  'bg-white border rounded-lg p-5',
-                  urgente ? 'border-red-200 bg-red-50/30' : alerta ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200'
-                )}
+                className="animate-in"
+                style={{
+                  background: bgColor,
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: '16px',
+                  padding: '20px',
+                }}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {urgente && <AlertOctagon className="w-4 h-4 text-red-500 shrink-0" />}
-                      {alerta && <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
-                      <h3 className="font-semibold text-slate-900 text-sm truncate">{g.restaurant_nome}</h3>
-                      <span className="text-xs text-slate-400 shrink-0">· {g.cliente_nome}</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Name row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      {urgente && <AlertOctagon style={{ width: '14px', height: '14px', color: 'var(--red-500)', flexShrink: 0 }} />}
+                      {alerta && <AlertTriangle style={{ width: '14px', height: '14px', color: '#f59e0b', flexShrink: 0 }} />}
+                      <h3
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          fontSize: '14px',
+                          margin: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {g.restaurant_nome}
+                      </h3>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                        · {g.cliente_nome}
+                      </span>
                     </div>
 
-                    {/* Progress bar */}
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm text-slate-600">
+                    {/* Progress */}
+                    <div style={{ marginBottom: '0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                           {g.contagem_actual}/{g.objetivo} pessoas
                         </span>
-                        <span className={cn(
-                          'text-sm font-bold tabular-nums',
-                          pct >= 75 ? 'text-green-600' : urgente ? 'text-red-500' : 'text-slate-700'
-                        )}>
+                        <span
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            fontFamily: 'var(--font-geist-mono), monospace',
+                            color: pct >= 75
+                              ? 'var(--green-600)'
+                              : urgente
+                              ? 'var(--red-600)'
+                              : 'var(--text-primary)',
+                          }}
+                        >
                           {pct}%
                         </span>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        style={{
+                          height: '6px',
+                          background: 'var(--bg-muted)',
+                          borderRadius: '3px',
+                          overflow: 'hidden',
+                        }}
+                      >
                         <div
-                          className={cn(
-                            'h-full rounded-full transition-all',
-                            pct >= 100 ? 'bg-green-500' :
-                            urgente ? 'bg-red-400' :
-                            alerta ? 'bg-amber-400' :
-                            'bg-blue-400'
-                          )}
-                          style={{ width: `${pct}%` }}
+                          style={{
+                            height: '100%',
+                            borderRadius: '3px',
+                            background: barColor,
+                            width: `${pct}%`,
+                            transition: 'width 400ms ease',
+                          }}
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Right stats */}
-                  <div className="text-right shrink-0 space-y-1">
-                    <div className={cn('text-sm font-semibold', urgente ? 'text-red-600' : alerta ? 'text-amber-600' : 'text-slate-700')}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        margin: '0 0 4px',
+                        color: urgente
+                          ? 'var(--red-600)'
+                          : alerta
+                          ? '#b45309'
+                          : 'var(--text-primary)',
+                      }}
+                    >
                       {g.dias_restantes} dias restantes
-                    </div>
-                    <div className="text-xs text-slate-400">Dia efectivo {g.dia_efectivo}/30</div>
+                    </p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 2px' }}>
+                      Dia efectivo {g.dia_efectivo}/30
+                    </p>
                     {g.pessoas_em_falta > 0 && (
-                      <div className="text-xs text-slate-500">
+                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
                         Faltam {pluralPessoa(g.pessoas_em_falta)}
-                      </div>
+                      </p>
                     )}
                   </div>
                 </div>
