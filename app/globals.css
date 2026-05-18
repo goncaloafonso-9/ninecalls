@@ -521,6 +521,8 @@
 }
 
 /* ── 6. Topbar mobile — full width fixo ── */
+.nc-topbar-mobile { display: none; }
+
 @media (max-width: 768px) {
   .nc-topbar-mobile {
     position: fixed;
