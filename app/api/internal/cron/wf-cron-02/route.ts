@@ -258,7 +258,7 @@ export async function POST(request: Request) {
         if (restaurant.estado !== 'rescindido' && process.env.N8N_ACTIVACAO_WEBHOOK_URL) {
           const { data: fullRestaurant } = await db
             .from('restaurants')
-            .select('*, clients(nome_empresa, email, telefone)')
+            .select('*, clients(nome_empresa, email_contacto, email_faturacao, telefone)')
             .eq('id', cycle.restaurant_id)
             .single()
 
@@ -284,7 +284,7 @@ export async function POST(request: Request) {
               restaurant_transfer_phone: fullRestaurant.transfer_phone ?? null,
               restaurant_google_drive_folder_link: fullRestaurant.google_drive_folder_link ?? null,
               client_nome: fullClient?.nome_empresa ?? '',
-              client_email: fullClient?.email ?? client?.email_faturacao ?? '',
+              client_email: fullClient?.email_contacto ?? fullClient?.email_faturacao ?? '',
               client_telefone: fullClient?.telefone ?? null,
               comissao_por_pessoa: fullRestaurant.comissao_por_pessoa ?? 0,
               taxa_takeaway: fullRestaurant.taxa_takeaway ?? 0,
