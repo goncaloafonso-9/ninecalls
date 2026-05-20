@@ -32,12 +32,16 @@ export default async function ConfirmTakeawayPage({ params }: Props) {
 
   const supabase = createAdminClient()
 
-  const { data: order } = await supabase
+  const { data: order, error } = await supabase
     .from('takeaway_orders')
     .select('id, estado, pickup_time, items, pessoas, expira_em, cliente_nome, cliente_phone, criado_em, restaurants(nome)')
     .eq('id', uuid)
     .single()
 
+  // PGRST116 = 0 rows — registo genuinamente não existe
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Erro ao carregar pedido: ${error.message}`)
+  }
   if (!order) notFound()
 
   const now = new Date()

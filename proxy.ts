@@ -73,7 +73,16 @@ export async function proxy(request: NextRequest) {
     (pathname.startsWith('/dashboard') || pathname.startsWith('/api/client')) &&
     role !== 'client'
   ) {
+    // #region agent log
+    fetch('http://127.0.0.1:7660/ingest/a833038d-db57-4c00-9a96-46f6ae8a7a6e', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'facf8e' }, body: JSON.stringify({ sessionId: 'facf8e', runId: 'pre-fix', hypothesisId: 'E', location: 'proxy.ts:client-route-wrong-role', message: 'dashboard or api/client blocked', data: { pathname, role: role ?? null }, timestamp: Date.now() }) }).catch(() => {})
+    // #endregion
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+  }
+
+  if (pathname.startsWith('/dashboard')) {
+    // #region agent log
+    fetch('http://127.0.0.1:7660/ingest/a833038d-db57-4c00-9a96-46f6ae8a7a6e', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'facf8e' }, body: JSON.stringify({ sessionId: 'facf8e', runId: 'pre-fix', hypothesisId: 'E', location: 'proxy.ts:dashboard-ok', message: 'dashboard request allowed', data: { pathname }, timestamp: Date.now() }) }).catch(() => {})
+    // #endregion
   }
 
   return supabaseResponse

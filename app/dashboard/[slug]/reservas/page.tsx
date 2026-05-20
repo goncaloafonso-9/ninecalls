@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { agentDebugLog } from '@/lib/debug-agent-log'
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { subDays, startOfDay, format } from 'date-fns'
@@ -55,13 +56,30 @@ export default async function ReservasPage({ params, searchParams }: Props) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  // #region agent log
+  await agentDebugLog({
+    hypothesisId: 'C',
+    location: 'reservas/page.tsx:after-getUser',
+    message: 'reservas entry',
+    data: { slug, periodo, role: user?.app_metadata?.role ?? null, ok: !!(user && user.app_metadata?.role === 'client') },
+  })
+  // #endregion
   if (!user || user.app_metadata?.role !== 'client') redirect('/login')
 
-  const { data: restaurant } = await supabase
+  const { data: restaurant, error: restErr } = await supabase
     .from('restaurants')
     .select('id, nome')
     .eq('slug', slug)
     .single()
+
+  // #region agent log
+  await agentDebugLog({
+    hypothesisId: 'B',
+    location: 'reservas/page.tsx:after-restaurant',
+    message: 'restaurant by slug',
+    data: { slug, found: !!restaurant, errCode: restErr?.code ?? null },
+  })
+  // #endregion
 
   if (!restaurant) notFound()
 
@@ -70,13 +88,22 @@ export default async function ReservasPage({ params, searchParams }: Props) {
     : periodo === '7d' ? subDays(new Date(), 7) : subDays(new Date(), 30)
 
   const db = createAdminClient()
-  const { data: bookings } = await db
+  const { data: bookings, error: bookingsErr } = await db
     .from('bookings')
     .select('id, booking_datetime, cliente_nome, cliente_phone, number_of_people, espaco, servico, estado, confirmado_em')
     .eq('restaurant_id', restaurant.id)
     .gte('booking_datetime', startDate.toISOString())
     .order('booking_datetime', { ascending: false })
     .limit(200)
+
+  // #region agent log
+  await agentDebugLog({
+    hypothesisId: 'A',
+    location: 'reservas/page.tsx:after-bookings',
+    message: 'bookings query',
+    data: { rowCount: bookings?.length ?? 0, errCode: bookingsErr?.code ?? null, startIso: startDate.toISOString() },
+  })
+  // #endregion
 
   const rows = bookings ?? []
 

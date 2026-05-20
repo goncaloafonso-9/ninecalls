@@ -40,12 +40,16 @@ export default async function ConfirmUltimaHoraPage({ params }: Props) {
 
   const supabase = createAdminClient()
 
-  const { data: pedido } = await supabase
+  const { data: pedido, error } = await supabase
     .from('ultima_hora_requests')
     .select('id, estado, ultima_hora_datetime, pessoas, espaco_preferido, expira_em, cliente_nome, cliente_phone, criado_em, restaurants(nome)')
     .eq('id', uuid)
     .single()
 
+  // PGRST116 = 0 rows — registo genuinamente não existe
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Erro ao carregar pedido: ${error.message}`)
+  }
   if (!pedido) notFound()
 
   const now = new Date()
