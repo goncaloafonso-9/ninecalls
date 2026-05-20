@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   if (process.env.N8N_ACTIVACAO_WEBHOOK_URL) {
     const { data: clientData } = await db
       .from('clients')
-      .select('nome_empresa, email, telefone')
+      .select('nome_empresa, email_contacto, email_faturacao, telefone')
       .eq('id', restaurant.client_id)
       .single()
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       restaurant_transfer_phone: restaurant.transfer_phone ?? null,
       restaurant_google_drive_folder_link: restaurant.google_drive_folder_link ?? null,
       client_nome: clientData?.nome_empresa ?? '',
-      client_email: clientData?.email ?? '',
+      client_email: clientData?.email_contacto ?? clientData?.email_faturacao ?? '',
       client_telefone: clientData?.telefone ?? null,
       comissao_por_pessoa: restaurant.comissao_por_pessoa ?? 0,
       taxa_takeaway: restaurant.taxa_takeaway ?? 0,
